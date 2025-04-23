@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import random
 import os
+from datetime import datetime
+from openpyxl import load_workbook
 
 st.set_page_config(page_title="TIMS行銷專業能力認證 2025(初級)題庫", layout="wide")
 st.title("TIMS行銷專業能力認證 2025(初級)題庫")
@@ -10,6 +12,8 @@ st.title("TIMS行銷專業能力認證 2025(初級)題庫")
 EXCEL_PATH = "行銷題庫總表.xlsx"
 SHEET_NAME = "題庫總表"
 WRONG_LOG = "錯題紀錄.csv"
+STATS_LOG = "答題統計.csv"
+EDIT_PASSWORD = "quiz2024"
 
 @st.cache_data
 def load_data():
@@ -18,40 +22,35 @@ def load_data():
 df = load_data()
 chapter_mapping = {f"CH{i}": [f"{i}-1", f"{i}-2"] for i in range(1, 10)}
 
-mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式"])
-username = st.sidebar.text_input("請輸入使用者名稱")
-num_questions = st.sidebar.number_input("出題數量", min_value=1, max_value=50, value=5)
-start_quiz = st.sidebar.button("🚀 開始出題")
+# 初始化狀態
+if "quiz_started" not in st.session_state:
+    st.session_state.quiz_started = False
+if "questions" not in st.session_state:
+    st.session_state.questions = None
+if "user_answers" not in st.session_state:
+    st.session_state.user_answers = []
+if "shuffled_options" not in st.session_state:
+    st.session_state.shuffled_options = {}
+if "show_result" not in st.session_state:
+    st.session_state.show_result = False
 
-if start_quiz and username.strip():
-    username = username.strip()
-    if mode == "錯題再練模式":
-        if os.path.exists(WRONG_LOG):
-            wrong_df = pd.read_csv(WRONG_LOG)
-            wrong_df["使用者"] = wrong_df["使用者"].astype(str).str.strip().str.lower()
-            username_lower = username.lower()
-
-            matched = wrong_df[wrong_df["使用者"] == username_lower]
-            st.info(f"✅ 找到 {len(matched)} 筆與使用者 `{username}` 相關的錯題")
-
-            if len(matched) == 0:
-                st.warning("⚠️ 此使用者目前尚無錯題紀錄")
-            else:
-                matched["章節"] = matched["章節"].astype(str)
-                matched["題號"] = matched["題號"].astype(str)
-                df["章節"] = df["章節"].astype(str)
-                df["題號"] = df["題號"].astype(str)
-                merged = df.merge(matched[["章節", "題號"]].drop_duplicates(), on=["章節", "題號"])
-                st.success(f"🎯 成功比對到 {len(merged)} 題可以再練")
-                st.write(merged[["章節", "題號", "題目"]].head(num_questions))
-        else:
-            st.error("❌ 尚未有任何錯題紀錄")
+def update_stats(user, chapter, qid):
+    if os.path.exists(STATS_LOG):
+        stats_df = pd.read_csv(STATS_LOG)
     else:
-        selected_chapters = st.sidebar.multiselect("選擇章節", list(chapter_mapping.keys()), default=["CH1"])
-        valid_sections = []
-        for ch in selected_chapters:
-            valid_sections.extend(chapter_mapping.get(ch, []))
-        filtered_df = df[df["章節"].astype(str).isin(valid_sections)]
-        sample = filtered_df.sample(n=min(num_questions, len(filtered_df))).reset_index(drop=True)
-        st.success(f"✅ 隨機抽取 {len(sample)} 題")
-        st.write(sample[["章節", "題號", "題目"]])
+        stats_df = pd.DataFrame(columns=["使用者", "章節", "題號", "次數"])
+    match = (stats_df["使用者"] == user) & (stats_df["章節"] == chapter) & (stats_df["題號"] == qid)
+    if match.any():
+        stats_df.loc[match, "次數"] += 1
+    else:
+        stats_df = pd.concat([stats_df, pd.DataFrame([{"使用者": user, "章節": chapter, "題號": qid, "次數": 1}])], ignore_index=True)
+    stats_df.to_csv(STATS_LOG, index=False)
+
+def log_wrong(user, chapter, qid, question):
+    if os.path.exists(WRONG_LOG):
+        log_df = pd.read_csv(WRONG_LOG)
+    else:
+        log_df = pd.DataFrame(columns=["使用者", "章節", "題號", "題目"])
+    new_row = pd.DataFrame([{"使用者": user, "章節": chapter, "題號": qid, "題目": question}])
+    log_df = pd.concat([log_df, new_row], ignore_index=True)
+    log_df.to_csv(WRONG_LOG, index=False)
