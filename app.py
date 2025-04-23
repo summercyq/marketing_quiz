@@ -48,7 +48,7 @@ with st.sidebar:
             pool = df[df['章節'].isin(selected_tags)]
 
             # 防呆：排除資料不完整的題目
-            required_fields = ['選項A', '選項B', '選項C', '選項D', '題目', '題號', '解答']
+            required_fields = ['A', 'B', 'C', 'D', '題目', '題號', '解答']
             pool = pool.dropna(subset=required_fields)
 
             if pool.empty:
@@ -57,7 +57,7 @@ with st.sidebar:
 
             questions = pool.sample(min(count, len(pool))).to_dict(orient='records')
             for q in questions:
-                options = [q['選項A'], q['選項B'], q['選項C'], q['選項D']]
+                options = [q['A'], q['B'], q['C'], q['D']]
                 random.shuffle(options)
                 q['選項'] = options
             return questions
@@ -84,7 +84,7 @@ with st.sidebar:
                 retry_questions = df.merge(df_user_wrong[["章節", "題號"]], on=["章節", "題號"], how="inner")
                 retry_questions = retry_questions.to_dict(orient='records')
                 for q in retry_questions:
-                    options = [q['選項A'], q['選項B'], q['選項C'], q['選項D']]
+                    options = [q['A'], q['B'], q['C'], q['D']]
                     random.shuffle(options)
                     q['選項'] = options
                 st.session_state.questions = retry_questions
