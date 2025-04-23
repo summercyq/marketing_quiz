@@ -12,6 +12,7 @@ st.title("TIMS行銷專業能力認證 2025(初級)題庫")
 EXCEL_PATH = "行銷題庫總表.xlsx"
 SHEET_NAME = "題庫總表"
 WRONG_LOG = "錯題紀錄.csv"
+STATS_LOG = "答題統計.csv"
 EDIT_PASSWORD = "quiz2024"
 
 @st.cache_data
@@ -34,12 +35,23 @@ if "shuffled_options" not in st.session_state:
 if "show_result" not in st.session_state:
     st.session_state.show_result = False
 
+def update_stats(user, chapter, qid):
+    if os.path.exists(STATS_LOG):
+        stats_df = pd.read_csv(STATS_LOG)
+    else:
+        stats_df = pd.DataFrame(columns=["使用者", "章節", "題號", "次數"])
+    match = (stats_df["使用者"] == user) & (stats_df["章節"] == chapter) & (stats_df["題號"] == qid)
+    if match.any():
+        stats_df.loc[match, "次數"] += 1
+    else:
+        stats_df = pd.concat([stats_df, pd.DataFrame([{"使用者": user, "章節": chapter, "題號": qid, "次數": 1}])], ignore_index=True)
+    stats_df.to_csv(STATS_LOG, index=False)
+
 if mode == "題庫編輯":
     password = st.text_input("🔐 請輸入密碼以進入編輯模式", type="password")
     if password == EDIT_PASSWORD:
         keyword = st.text_input("🔎 搜尋題目關鍵字")
         result = df[df["題目"].str.contains(keyword, na=False)] if keyword else df
-
         selected_row = st.selectbox("選擇要編輯的題目", result.apply(lambda x: f"{x['章節']} - {x['題號']}：{x['題目']}", axis=1))
         if selected_row:
             row_data = result[result.apply(lambda x: f"{x['章節']} - {x['題號']}：{x['題目']}", axis=1) == selected_row].iloc[0]
@@ -49,14 +61,15 @@ if mode == "題庫編輯":
             optC = st.text_input("選項 C", row_data["C"])
             optD = st.text_input("選項 D", row_data["D"])
             expl = st.text_area("解析", row_data["解析"])
-
             if st.button("✅ 更新題庫"):
                 wb = load_workbook(EXCEL_PATH)
                 ws = wb[SHEET_NAME]
                 for row in ws.iter_rows(min_row=2):
                     if str(row[0].value) == str(row_data["章節"]) and str(row[1].value) == str(row_data["題號"]):
-                        row[3].value, row[4].value = optA, optB
-                        row[5].value, row[6].value = optC, optD
+                        row[3].value = optA
+                        row[4].value = optB
+                        row[5].value = optC
+                        row[6].value = optD
                         row[9].value = expl
                         break
                 wb.save(EXCEL_PATH)
@@ -82,16 +95,18 @@ else:
             for ch in selected_chapters:
                 valid_sections.extend(chapter_mapping.get(ch, []))
             filtered_df = df[df["章節"].astype(str).isin(valid_sections)]
-        else:
-            if not os.path.exists(WRONG_LOG):
-                st.error("❌ 尚未有錯題紀錄")
-                filtered_df = pd.DataFrame()
-            else:
+        elif mode == "錯題再練模式":
+            if os.path.exists(WRONG_LOG):
                 wrong_df = pd.read_csv(WRONG_LOG)
-                filtered_df = df.merge(wrong_df[["章節", "題號"]].drop_duplicates(), on=["章節", "題號"])
+                user_wrong_df = wrong_df[wrong_df["使用者"] == username]
+                filtered_df = df.merge(user_wrong_df[["章節", "題號"]].drop_duplicates(), on=["章節", "題號"])
+            else:
+                st.error("❌ 尚未有錯題紀錄")
+                st.session_state.quiz_started = False
+                filtered_df = pd.DataFrame()
 
         if filtered_df.empty:
-            st.error("❌ 找不到符合條件的題目")
+            st.error("❌ 找不到符合的題目")
             st.session_state.quiz_started = False
         else:
             st.session_state.questions = filtered_df.sample(n=min(num_questions, len(filtered_df))).reset_index(drop=True)
@@ -140,6 +155,7 @@ else:
                         "解析": row["解析"],
                         "選項配對": zipped
                     })
+                    update_stats(username, row["章節"], row["題號"])
                 else:
                     st.session_state.user_answers[i]["使用者答案"] = user_ans_label
                     st.session_state.user_answers[i]["使用者內容"] = selected
@@ -165,3 +181,10 @@ else:
         if not st.session_state.show_result:
             if st.button("✅ 送出並評分", key="submit_final"):
                 st.session_state.show_result = True
+        else:
+            if st.button("🔄 重新出題", key="restart"):
+                st.session_state.quiz_started = False
+                st.session_state.questions = None
+                st.session_state.user_answers = []
+                st.session_state.shuffled_options = {}
+                st.session_state.show_result = False
