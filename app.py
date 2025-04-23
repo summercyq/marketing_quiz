@@ -210,3 +210,29 @@ else:
                 st.session_state.user_answers = []
                 st.session_state.shuffled_options = {}
                 st.session_state.show_result = False
+
+
+# === 進階功能：清除錯題紀錄 ===
+with st.sidebar.expander("⚙️ 錯題紀錄管理"):
+    clear_mode = st.radio("選擇清除模式", ["單一使用者", "全部使用者"], key="clear_mode")
+    clear_password = st.text_input("管理密碼", type="password", key="clear_pwd")
+    if clear_password == EDIT_PASSWORD:
+        if clear_mode == "單一使用者":
+            user_to_clear = st.text_input("🔍 請輸入欲清除錯題的使用者名稱")
+            if st.button("🗑️ 清除該使用者錯題紀錄"):
+                if os.path.exists(WRONG_LOG):
+                    wrong_df = pd.read_csv(WRONG_LOG)
+                    new_df = wrong_df[wrong_df["使用者"].str.lower() != user_to_clear.strip().lower()]
+                    new_df.to_csv(WRONG_LOG, index=False)
+                    st.success(f"✅ 已清除 {user_to_clear} 的錯題紀錄")
+                else:
+                    st.info("ℹ️ 尚未有錯題紀錄")
+        else:
+            if st.button("🧨 清除所有使用者的錯題紀錄"):
+                if os.path.exists(WRONG_LOG):
+                    os.remove(WRONG_LOG)
+                    st.success("✅ 已刪除所有錯題紀錄")
+                else:
+                    st.info("ℹ️ 錯題紀錄檔案不存在")
+    elif clear_password:
+        st.error("❌ 密碼錯誤")
