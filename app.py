@@ -46,6 +46,15 @@ with st.sidebar:
         def generate_questions(chapters, count):
             selected_tags = [t for ch in chapters for t in chapter_mapping[ch]]
             pool = df[df['章節'].isin(selected_tags)]
+
+            # 防呆：排除資料不完整的題目
+            required_fields = ['選項A', '選項B', '選項C', '選項D', '題目', '題號', '解答']
+            pool = pool.dropna(subset=required_fields)
+
+            if pool.empty:
+                st.warning("選擇的章節中沒有足夠的題目或資料不完整，請檢查題庫。")
+                return []
+
             questions = pool.sample(min(count, len(pool))).to_dict(orient='records')
             for q in questions:
                 options = [q['選項A'], q['選項B'], q['選項C'], q['選項D']]
