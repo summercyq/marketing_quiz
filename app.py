@@ -78,7 +78,7 @@ if st.session_state.questions and st.session_state.submitted:
             correct += 1
         else:
             with open(WRONG_LOG, "a", encoding="utf-8") as f:
-                f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}
+                f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
 ")
         with open(STATS_LOG, "a", encoding="utf-8") as f:
             f.write(f"{username},{row['章節']},{row['題號']},{datetime.now().strftime('%Y-%m-%d')}
