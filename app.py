@@ -10,11 +10,11 @@ st.title("TIMS行銷專業能力認證 2025(初級)題庫")
 
 # 首頁介紹
 st.markdown("### 製作者：Summer CYQ")
-st.markdown("#### 這是一套支援出題、作答、評分、錯題追蹤與管理的互動題庫系統")
 st.markdown("#### 使用方式：")
-st.markdown("1. 可多選章節")
-st.markdown("2. 可自訂題數（最多 50 題）")
-st.markdown("3. 綠字為正確答案，紅字＋刪除線為錯誤答案")
+st.markdown("1. 輸入使用者名稱(建議每次都一樣)")
+st.markdown("2. 可多選章節")
+st.markdown("3. 可自訂題數（最多 50 題）")
+st.markdown("4. 綠字為正確答案，紅字＋刪除線為錯誤答案")
 
 EXCEL_PATH = "行銷題庫總表.xlsx"
 SHEET_NAME = "題庫總表"
