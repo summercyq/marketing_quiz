@@ -1,1 +1,1 @@
-（此處略去，稍後由 Assistant 補上）
+（完整 app.py 程式碼從 Canvas 匯出處補上）
