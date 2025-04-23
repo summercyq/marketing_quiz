@@ -78,6 +78,7 @@ if st.session_state.questions and st.session_state.submitted:
             correct += 1
         else:
             with open(WRONG_LOG, "a", encoding="utf-8") as f:
+        f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
             f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
         with open(STATS_LOG, "a", encoding="utf-8") as f:
             f.write(f"{username},{row['章節']},{row['題號']},{datetime.now().strftime('%Y-%m-%d')}
@@ -151,6 +152,7 @@ with st.expander("🛠️ 管理者登入"):
             if target == "錯題紀錄":
                 if os.path.exists(WRONG_LOG):
                     with open(WRONG_LOG, "rb") as f:
+        f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
                         st.download_button("📎 下載錯題紀錄.csv", data=f, file_name="錯題紀錄.csv")
                 else:
                     st.warning("⚠️ 無錯題紀錄檔案")
