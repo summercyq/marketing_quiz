@@ -20,8 +20,6 @@ def load_data():
 df = load_data()
 chapter_mapping = {f"CH{i}": [f"{i}-1", f"{i}-2"] for i in range(1, 10)}
 
-mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式"])
-
 if "quiz_started" not in st.session_state:
     st.session_state.quiz_started = False
 if "questions" not in st.session_state:
@@ -61,9 +59,10 @@ elif start_quiz and not username.strip():
     st.error("❗ 請輸入使用者名稱後再開始作答")
 
 if st.session_state.quiz_started and st.session_state.questions is not None:
-    st.subheader("📝 開始作答")
-    if st.button("✅ 送出並評分"):
-        st.session_state.show_result = True
+    if st.session_state.show_result:
+        total = len(st.session_state.questions)
+        correct = sum(1 for ans in st.session_state.user_answers if ans["使用者答案"] == ans["正確答案"])
+        st.markdown(f"### 📊 總共 {total} 題，答對 {correct} 題")
 
     for i, row in st.session_state.questions.iterrows():
         with st.expander(f"Q{i+1}. {row['題目']}", expanded=True):
@@ -78,7 +77,6 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
 
             correct_label = row["解答"]
             correct_text = row[correct_label]
-
             selected = st.radio(
                 "選項：",
                 options=[opt for _, opt in shuffled],
@@ -120,8 +118,9 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
                     else:
                         style = ""
                     st.markdown(f"<div style='{style}'>{label}. {opt}</div>", unsafe_allow_html=True)
+                if ans["使用者答案"] != ans["正確答案"]:
+                    st.markdown(f"<div style='margin-top:10px;'>解析：第{ans['章節']}章題號{ans['題號']}：{ans['解析']}</div>", unsafe_allow_html=True)
 
-                st.markdown(
-                    f"<div style='margin-top:10px;'><strong>解析：</strong>第{ans['章節']}章題號{ans['題號']}：{ans['解析']}</div>",
-                    unsafe_allow_html=True
-                )
+    if not st.session_state.show_result:
+        if st.button("✅ 送出並評分", key="submit_final"):
+            st.session_state.show_result = True
