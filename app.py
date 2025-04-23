@@ -56,7 +56,7 @@ def log_wrong(user, chapter, qid, question):
     log_df.to_csv(WRONG_LOG, index=False)
 
 
-mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式", "題庫編輯"])
+mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式", "題庫編輯", "管理者登入"])
 
 if mode == "題庫編輯":
     password = st.text_input("🔐 請輸入密碼進入編輯模式", type="password")
