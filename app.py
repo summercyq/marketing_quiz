@@ -26,8 +26,9 @@ def write_wrong_log(record):
 df = load_data()
 chapter_mapping = {f"CH{i}": [f"{i}-1", f"{i}-2"] for i in range(1, 10)}
 
-st.title("📚 行銷隨機測驗系統")
-st.markdown("請輸入使用者名稱，選擇章節與題目數量，系統將自動出題並評分。")
+st.title("📚 行銷測驗系統")
+
+mode = st.sidebar.radio("選擇模式", ["一般出題模式", "錯題再練模式"])
 
 if "quiz_started" not in st.session_state:
     st.session_state.quiz_started = False
@@ -42,7 +43,6 @@ if "show_result" not in st.session_state:
 
 with st.sidebar:
     username = st.text_input("請輸入你的姓名（作為錯題紀錄）", key="username")
-    selected_chapters = st.multiselect("選擇章節：", list(chapter_mapping.keys()), default=["CH1"])
     num_questions = st.number_input("出題數量：", min_value=1, max_value=50, value=5)
     start_quiz = st.button("🚀 開始出題")
 
@@ -52,10 +52,19 @@ if start_quiz and username.strip():
     st.session_state.shuffled_options = {}
     st.session_state.show_result = False
 
-    valid_sections = []
-    for ch in selected_chapters:
-        valid_sections.extend(chapter_mapping.get(ch, []))
-    filtered_df = df[df["章節"].astype(str).isin(valid_sections)]
+    if mode == "一般出題模式":
+        selected_chapters = st.multiselect("選擇章節：", list(chapter_mapping.keys()), default=["CH1"])
+        valid_sections = []
+        for ch in selected_chapters:
+            valid_sections.extend(chapter_mapping.get(ch, []))
+        filtered_df = df[df["章節"].astype(str).isin(valid_sections)]
+    else:
+        if not os.path.exists(WRONG_LOG):
+            st.error("❌ 尚未有錯題紀錄，請先使用一般模式作答")
+            filtered_df = pd.DataFrame()
+        else:
+            wrong_df = pd.read_csv(WRONG_LOG)
+            filtered_df = df.merge(wrong_df[["章節", "題號"]].drop_duplicates(), on=["章節", "題號"])
 
     if filtered_df.empty:
         st.error("❌ 找不到符合條件的題目")
@@ -111,9 +120,3 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
 
     if st.button("✅ 送出並評分"):
         st.session_state.show_result = True
-
-if os.path.exists(WRONG_LOG):
-    st.divider()
-    st.subheader("📥 錯題紀錄下載")
-    with open(WRONG_LOG, "r", encoding="utf-8") as f:
-        st.download_button("📥 下載錯題紀錄", f.read(), file_name="錯題紀錄.csv", mime="text/csv")
