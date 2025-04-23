@@ -58,8 +58,7 @@ def log_wrong(user, chapter, qid, question):
 
 mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式"])
 
-if mode == "題庫編輯":
-    password = st.text_input("🔐 請輸入密碼進入編輯模式", type="password")
+st.text_input("🔐 請輸入密碼進入編輯模式", type="password")
     if password == EDIT_PASSWORD:
         keyword = st.text_input("🔍 搜尋題目關鍵字")
         result = df[df["題目"].str.contains(keyword, na=False)] if keyword else df
