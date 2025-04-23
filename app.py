@@ -78,10 +78,10 @@ if st.session_state.questions and st.session_state.submitted:
             correct += 1
         else:
             with open(WRONG_LOG, "a", encoding="utf-8") as f:
-        f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
+            f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
             f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
         with open(STATS_LOG, "a", encoding="utf-8") as f:
-            f.write(f"{username},{row['章節']},{row['題號']},{datetime.now().strftime('%Y-%m-%d')}
+            f.write(f"{username},{row['章節']},{row['題號']},{datetime.now().strftime('%Y-%m-%d')}\n")
 
         color = "green" if is_correct else "red"
         st.markdown(f"{i+1}. {row['題目']}")
@@ -152,14 +152,14 @@ with st.expander("🛠️ 管理者登入"):
             if target == "錯題紀錄":
                 if os.path.exists(WRONG_LOG):
                     with open(WRONG_LOG, "rb") as f:
-        f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
+            f.write(f"{username},{row['章節']},{row['題號']},{row['題目']}\n")
                         st.download_button("📎 下載錯題紀錄.csv", data=f, file_name="錯題紀錄.csv")
                 else:
                     st.warning("⚠️ 無錯題紀錄檔案")
             else:
                 if os.path.exists(STATS_LOG):
                     with open(STATS_LOG, "rb") as f:
-                        st.download_button("📎 下載答題統計.csv", data=f, file_name="答題統計.csv")
+            f.write(f"{username},{row['章節']},{row['題號']},{datetime.now().strftime('%Y-%m-%d')}\n")
                 else:
                     st.warning("⚠️ 無答題統計檔案")
     elif admin_pwd:
