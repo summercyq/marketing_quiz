@@ -101,9 +101,10 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
                 for label, opt in ans["選項配對"]:
                     style = ""
                     is_user_selected = label == ans["使用者答案"]
-                    if label == ans["正確答案"]:
+                    is_correct = label == ans["正確答案"]
+                    if is_correct:
                         style = "color:green;font-weight:bold;"
-                    elif is_user_selected and ans["使用者答案"] != ans["正確答案"]:
+                    elif is_user_selected and not is_correct:
                         style = "color:red;font-weight:bold;text-decoration:line-through;"
                     st.markdown(f"<div style='{style}'>{label}. {opt}</div>", unsafe_allow_html=True)
 
