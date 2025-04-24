@@ -123,7 +123,10 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
             st.session_state.show_result = True
     else:
         total = len(st.session_state.questions)
-        correct = sum(1 for ans in st.session_state.user_answers if ans["使用者答案"] == ans["正確答案"])
+        correct = sum(
+            1 for ans in st.session_state.user_answers
+            if ans["使用者內容"] == ans["正確內容"]
+        )
         st.markdown(f"### 🎯 共 {total} 題，答對 {correct} 題")
         if st.button("🔄 重新出題"):
             st.session_state.quiz_started = False
