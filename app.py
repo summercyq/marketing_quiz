@@ -76,7 +76,7 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
 
             if not st.session_state.show_result:
                 selected = st.radio("選項：", [opt for _, opt in zipped], key=f"q{i}")
-                user_ans_label = opt_to_label[selected]
+                user_ans_label = opt_to_label.get(selected, "")
             else:
                 ans = st.session_state.user_answers[i]
                 user_ans_label = ans["使用者答案"]
@@ -95,17 +95,19 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
                     "解析": row["解析"],
                     "選項配對": zipped
                 })
+
             if st.session_state.show_result:
                 ans = st.session_state.user_answers[i]
                 for label, opt in ans["選項配對"]:
                     style = ""
+                    is_user_selected = ans["使用者內容"] == opt
                     if label == ans["正確答案"]:
                         style = "color:green;font-weight:bold;"
-                    elif label == ans["使用者答案"] and ans["使用者答案"] != ans["正確答案"]:
+                    elif is_user_selected and label != ans["正確答案"]:
                         style = "color:red;font-weight:bold;text-decoration:line-through;"
                     st.markdown(f"<div style='{style}'>{label}. {opt}</div>", unsafe_allow_html=True)
 
-                if st.session_state.user_answers[i]["使用者答案"] != st.session_state.user_answers[i]["正確答案"]:
+                if ans["使用者答案"] != ans["正確答案"]:
                     st.markdown(f"解析：第{row['章節']}章題號{row['題號']}：{row['解析']}")
 
     if not st.session_state.show_result:
