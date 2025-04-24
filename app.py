@@ -97,14 +97,16 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
                 })
 
             if st.session_state.show_result:
-                for label, opt in st.session_state.user_answers[i]["選項配對"]:
+                ans = st.session_state.user_answers[i]
+                for label, opt in ans["選項配對"]:
                     style = ""
-                    if label == st.session_state.user_answers[i]["正確答案"]:
+                    # 正確答案標示為綠色
+                    if label == ans["正確答案"]:
                         style = "color:green;font-weight:bold;"
-                    elif label == st.session_state.user_answers[i]["使用者答案"] and \
-             st.session_state.user_answers[i]["使用者答案"] != st.session_state.user_answers[i]["正確答案"] and \
-             st.session_state.user_answers[i]["使用者內容"] == opt:
+                    # 錯誤選項（使用者實際選錯的那一個）
+                    elif label == ans["使用者答案"] and ans["使用者答案"] != ans["正確答案"]:
                         style = "color:red;font-weight:bold;text-decoration:line-through;"
+                    # 其他選項不加樣式
                     st.markdown(f"<div style='{style}'>{label}. {opt}</div>", unsafe_allow_html=True)
 
                 if st.session_state.user_answers[i]["使用者答案"] != st.session_state.user_answers[i]["正確答案"]:
