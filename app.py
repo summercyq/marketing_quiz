@@ -101,7 +101,9 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
                     style = ""
                     if label == st.session_state.user_answers[i]["正確答案"]:
                         style = "color:green;font-weight:bold;"
-                    elif label == st.session_state.user_answers[i]["使用者答案"] and st.session_state.user_answers[i]["使用者答案"] != st.session_state.user_answers[i]["正確答案"]:
+                    elif label == st.session_state.user_answers[i]["使用者答案"] and \
+             st.session_state.user_answers[i]["使用者答案"] != st.session_state.user_answers[i]["正確答案"] and \
+             st.session_state.user_answers[i]["使用者內容"] == opt:
                         style = "color:red;font-weight:bold;text-decoration:line-through;"
                     st.markdown(f"<div style='{style}'>{label}. {opt}</div>", unsafe_allow_html=True)
 
