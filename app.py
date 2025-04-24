@@ -73,10 +73,13 @@ if st.session_state.quiz_started and st.session_state.questions is not None:
             opt_to_label = {opt: label for label, opt in zipped}
             correct_label = row["解答"]
             correct_text = row[correct_label]
-
+            
             if not st.session_state.show_result:
-                selected = st.radio("選項：", [opt for _, opt in zipped], key=f"q{i}")
-                user_ans_label = opt_to_label.get(selected, "")
+                selected = st.radio("選項：", [opt for _, opt in zipped], key=f"q{i}", index=None)
+                if selected is not None:
+                    user_ans_label = opt_to_label.get(selected, "")
+                else:
+                    user_ans_label = ""
             else:
                 ans = st.session_state.user_answers[i]
                 user_ans_label = ans["使用者答案"]
