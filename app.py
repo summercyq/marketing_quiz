@@ -35,6 +35,14 @@ for key in ["quiz_started", "questions", "user_answers", "shuffled_options", "la
     if key not in st.session_state:
         st.session_state[key] = False if key == "is_admin_mode" or key == "quiz_started" else [] if key.endswith("s") else None
 
+# --- Helper function for consistent chapter/question number formatting ---
+def format_chap_q_num(value):
+    """Formats chapter or question number to string, handling None. Returns empty string for None."""
+    if value is None:
+        return ""
+    return str(value).strip() # Ensure strip() is applied
+
+# --- Helper function to generate quiz questions ---
 def generate_quiz_questions(username, mode, selected_chapters, num_questions, dataframe, chapter_map, wrong_log_path):
     """Generates a list of questions based on the selected mode and settings."""
     if dataframe.empty:
@@ -344,7 +352,7 @@ else: # st.session_state.is_admin_mode is False
                                     st.error(f"❌ 答錯了。正確答案是：{newly_answered_item.get('正確答案', 'N/A')}. {newly_answered_item.get('正確內容', 'N/A')}")
                                 st.markdown(f"※{newly_answered_item.get('章節', 'N/A')}第{newly_answered_item.get('題號', 'N/A')}題解析：{newly_answered_item.get('解析', '無解析')}")
 
-                    else:
+                 else:
                       # --- Display Feedback and Explanation for the PREVIOUS answer ---
                       if answered_item_before_recording.get("是否正確") is True:
                           st.success(f"✅ 答對了！")
@@ -360,35 +368,43 @@ else: # st.session_state.is_admin_mode is False
              if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
         ])
 
+        # Prepare the list of quiz question tuples for comparison ONCE after the loop
+        # Use helper function for consistent formatting
+        # Reworked slightly to avoid redefining inside the else below
+        quiz_question_tuples_formatted = [(format_chap_q_num(q.get("章節")), format_chap_q_num(q.get("題號"))) for _, q in st.session_state.questions.iterrows()]
+
+
         # Calculate answered count (unique) ONCE after the loop
-        # This counts unique questions from user_answers that are in the current quiz set
-        answered_questions_in_quiz = {(item.get("章節"), item.get("題號")) for item in st.session_state.user_answers if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]}
+        # Use helper function for consistent formatting from user_answers
+        # Check if the formatted tuple from user_answers is in the formatted quiz question tuples
+        answered_questions_in_quiz = {(format_chap_q_num(item.get("章節")), format_chap_q_num(item.get("題號"))) for item in st.session_state.user_answers if (format_chap_q_num(item.get("章節")), format_chap_q_num(item.get("題號"))) in quiz_question_tuples_formatted}
         final_answered_count = len(answered_questions_in_quiz)
 
-         # >>> 在這裡加入偵錯行 <<<
+
+        # --- 偵錯用：印出計算完成的計數以及 all_answered 結果 ---
+        st.write(f"偵錯：本次測驗題目 Tuple 列表 (用於比對, 格式化後): {quiz_question_tuples_formatted}")
         st.write(f"偵錯：計算完成！ final_total_valid_questions = {final_total_valid_questions}")
         st.write(f"偵錯：計算完成！ final_answered_count = {final_answered_count}")
-        # >>> -------------------- <<<
-
         # Determine if all answered using these final counts
         # This condition controls whether the final results block is shown
         all_answered = final_total_valid_questions > 0 and final_answered_count >= final_total_valid_questions
-
-        # >>> 在這裡也加入偵錯行，看看 all_answered 是 True 還是 False <<<
         st.write(f"偵錯：all_answered 判斷結果 = {all_answered}")
-        # >>> -------------------- <<<
+        # --------------------------------------------------------
+
 
         # --- Display Results and Restart Button ---
         if all_answered:
             st.markdown("---")
             # Calculate correct count based on all correct answers within the current quiz set
-            final_correct_count = sum(1 for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(str(q.get('章節', '')), str(q.get('題號', ''))) for _, q in st.session_state.questions.iterrows()] and item.get('是否正確') is True)
+            # Use formatted tuples for comparison
+            final_correct_count = sum(1 for item in st.session_state.user_answers if (format_chap_q_num(item.get('章節')), format_chap_q_num(item.get('題號'))) in quiz_question_tuples_formatted and item.get('是否正確') is True)
             st.markdown(f"### 🎯 本次測驗結果：總計 {final_total_valid_questions} 題，答對 {final_correct_count} 題")
 
             # --- Logging Wrong Answers (after quiz completion) ---
+            # Use formatted tuples for filtering wrong answers within this quiz set
             wrong_answers_this_quiz_set = [
                 item for item in st.session_state.user_answers
-                if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]
+                if (format_chap_q_num(item.get("章節")), format_chap_q_num(item.get("題號"))) in quiz_question_tuples_formatted
                 and item.get("是否正確") is False
             ]
 
@@ -400,16 +416,18 @@ else: # st.session_state.is_admin_mode is False
                         df_wrong_log = pd.DataFrame(columns=["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"])
 
                     new_wrong_entries = []
-                    existing_wrong_keys = set(tuple(map(str, row[["使用者", "章節", "題號"]].tolist())) for _, row in df_wrong_log.iterrows())
+                    # Ensure keys are strings for comparison using format_chap_q_num
+                    existing_wrong_keys = set((str(row.get("使用者", "")), format_chap_q_num(row.get("章節")), format_chap_q_num(row.get("題號")) ) for _, row in df_wrong_log.iterrows())
 
                     for entry in wrong_answers_this_quiz_set:
-                        entry_key = (str(entry.get("使用者", "")), str(entry.get("章節", "")), str(entry.get("題號", "")))
+                        # Ensure entry key is strings for comparison using format_chap_q_num
+                        entry_key = (str(entry.get("使用者", "")), format_chap_q_num(entry.get("章節")), format_chap_q_num(entry.get("題號")))
                         if entry_key not in existing_wrong_keys:
                             entry_to_append = {
                                 "使用者": entry.get("使用者", ""),
                                 "時間": entry.get("時間", ""),
-                                "章節": entry.get("章節", ""),
-                                "題號": entry.get("題號", ""),
+                                "章節": entry.get("章節", ""), # Store raw value from item
+                                "題號": entry.get("題號", ""), # Store raw value from item
                                 "題目": entry.get("題目", ""),
                                 "使用者答案": entry.get("使用者答案", ""),
                                 "使用者內容": entry.get("使用者內容", ""),
@@ -457,7 +475,8 @@ else: # st.session_state.is_admin_mode is False
                   if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
              ])
              # Count UNIQUE answered questions for progress display (should be the same as final_answered_count)
-             answered_questions_in_quiz_progress = {(item.get("章節"), item.get("題號")) for item in st.session_state.user_answers if (item.get("章節"), item.get("題號")) in [(q.get("章節", ""), q.get("題號", "")) for _, q in st.session_state.questions.iterrows()]}
+             # Use formatted tuples for comparison
+             answered_questions_in_quiz_progress = {(format_chap_q_num(item.get("章節")), format_chap_q_num(item.get("題號"))) for item in st.session_state.user_answers if (format_chap_q_num(item.get("章節")), format_chap_q_num(item.get("題號"))) in quiz_question_tuples_formatted}
              progress_answered_count = len(answered_questions_in_quiz_progress)
 
 
