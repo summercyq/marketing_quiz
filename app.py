@@ -336,12 +336,31 @@ else: # st.session_state.is_admin_mode is False
                      except ValueError:
                          selected_index = None
 
-                # Display radio buttons
-                selected = st.radio("選項：", [opt for _, opt in zipped],
-                                    key=question_key,
-                                    index=selected_index,
-                                    disabled=answered_item is not None)
+                # Prepare options list for display based on whether the question is answered
+                display_options = []
+                # Find the text of the previously selected option if answered
+                prev_selected_text = answered_item.get("使用者內容") if answered_item else None
+                adjusted_selected_index = None # Index for the display_options list
 
+                # zipped contains tuples like ('A', 'Option A Text')
+                for label, opt_text in zipped:
+                    if answered_item is not None:
+                        # If answered, format as "A. Option Text"
+                        formatted_option = f"{label}. {opt_text}"
+                        display_options.append(formatted_option)
+                        # If this is the previously selected option, record its index in the new list
+                        if opt_text == prev_selected_text:
+                             adjusted_selected_index = len(display_options) - 1
+                    else:
+                        # If not answered, just show "Option Text"
+                        display_options.append(opt_text)
+                         # The original selected_index should still work here as the list order/content is the same
+
+                # Display radio buttons
+                selected = st.radio("選項：", display_options,
+                                    key=question_key,
+                                    index=adjusted_selected_index if answered_item is not None else selected_index, # Use adjusted index if answered
+                                    disabled=answered_item is not None)
 
                 # Check if all questions have been answered based on whether 'selected' is None for any question
                 if selected is None and correct_label in labels: # Only mark incomplete if the question itself is valid
