@@ -12,10 +12,9 @@ st.title("TIMS行銷專業能力認證 2025(初級)題庫")
 EXCEL_PATH = "行銷題庫總表.xlsx"
 SHEET_NAME = "題庫總表"
 WRONG_LOG = "錯題紀錄.csv"
-STATS_LOG = "答題統計.csv" # 答題統計功能未在原碼中實現，但路徑已定義
+STATS_LOG = "答題統計.csv"
 EDIT_PASSWORD = "quiz2024"
 
-# 使用st.cache_data載入資料，避免每次重跑都重新載入
 @st.cache_data
 def load_data():
     """Loads the question data from the Excel file."""
@@ -23,26 +22,19 @@ def load_data():
         return pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME)
     except FileNotFoundError:
         st.error(f"錯誤：找不到題庫檔案 `{EXCEL_PATH}`。請確認檔案是否存在。")
-        return pd.DataFrame() # Return empty dataframe on error
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"載入題庫時發生錯誤：{e}")
         return pd.DataFrame()
 
 df = load_data()
 
-
-# 章節對應關係 (CH10 已移除)
 chapter_mapping = {f"CH{i}": [f"{i}-1", f"{i}-2"] for i in range(1, 10)}
 
-
-# 初始化 Session State
 for key in ["quiz_started", "questions", "user_answers", "shuffled_options", "last_settings", "is_admin_mode"]:
     if key not in st.session_state:
-        # Default is not in admin mode
         st.session_state[key] = False if key == "is_admin_mode" or key == "quiz_started" else [] if key.endswith("s") else None
 
-
-# --- Helper function to generate quiz questions ---
 def generate_quiz_questions(username, mode, selected_chapters, num_questions, dataframe, chapter_map, wrong_log_path):
     """Generates a list of questions based on the selected mode and settings."""
     if dataframe.empty:
@@ -50,7 +42,7 @@ def generate_quiz_questions(username, mode, selected_chapters, num_questions, da
          return pd.DataFrame()
 
     if mode == "一般出題模式":
-        sections = [s for ch in selected_chapters for s in chapter_map.get(ch, [])] # Use .get for safety
+        sections = [s for ch in selected_chapters for s in chapter_map.get(ch, [])]
         filtered = dataframe[dataframe["章節"].astype(str).isin(sections)]
         if filtered.empty:
              st.warning(f"找不到符合所選章節 ({', '.join(selected_chapters)}) 的題目。")
@@ -60,10 +52,8 @@ def generate_quiz_questions(username, mode, selected_chapters, num_questions, da
         if os.path.exists(wrong_log_path):
             try:
                 log = pd.read_csv(wrong_log_path)
-                # Filter log for the current user and chapters (if chapters selected)
                 user_wrong_log = log[log["使用者"].str.lower() == username.lower()]
 
-                # Apply chapter filter if selected_chapters is not empty
                 if selected_chapters:
                     sections = [s for ch in selected_chapters for s in chapter_map.get(ch, [])]
                     user_wrong_log = user_wrong_log[user_wrong_log["章節"].astype(str).isin(sections)]
@@ -72,7 +62,6 @@ def generate_quiz_questions(username, mode, selected_chapters, num_questions, da
                      st.info(f"使用者 `{username}` 沒有錯題紀錄，或所選章節 ({', '.join(selected_chapters)}) 中沒有錯題。")
                      return pd.DataFrame()
 
-                # Merge with the main dataframe to get full question details
                 filtered = dataframe.merge(
                     user_wrong_log[["章節", "題號"]].drop_duplicates(),
                     on=["章節", "題號"]
@@ -99,7 +88,6 @@ def generate_quiz_questions(username, mode, selected_chapters, num_questions, da
         st.error("內部錯誤：無效的測驗模式選擇。")
         return pd.DataFrame()
 
-    # Sample questions
     if not filtered.empty:
         return filtered.sample(n=min(num_questions, len(filtered))).reset_index(drop=True)
     else:
@@ -110,14 +98,11 @@ def generate_quiz_questions(username, mode, selected_chapters, num_questions, da
 st.sidebar.header("使用者與模式設定")
 st.session_state.username = st.sidebar.text_input("請輸入使用者名稱", value=st.session_state.get("username", ""), key="username_input")
 
-
-# --- Sidebar - Quiz Settings (Only display if not in Admin mode) ---
 if not st.session_state.is_admin_mode:
-    quiz_mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式"], key="quiz_mode_radio") # Removed "管理者登入"
+    quiz_mode = st.sidebar.radio("選擇模式：", ["一般出題模式", "錯題再練模式"], key="quiz_mode_radio")
     selected_chapters = st.sidebar.multiselect("選擇章節：", list(chapter_mapping.keys()), default=["CH1"], key="chapters_select")
     num_questions = st.sidebar.number_input("出題數量", min_value=1, max_value=50, value=5, key="num_questions_input")
 
-    # Start Quiz Button
     if st.sidebar.button("🚀 開始出題", key="start_quiz_button"):
         if not st.session_state.username.strip():
             st.sidebar.warning("請先輸入使用者名稱！")
@@ -125,18 +110,14 @@ if not st.session_state.is_admin_mode:
              st.sidebar.warning("題庫資料為空，無法開始測驗。")
         else:
             st.session_state.quiz_started = True
-            st.session_state.user_answers = [] # Reset answers for new quiz
-            st.session_state.shuffled_options = {} # Reset shuffled options
-
-            # Store current settings in session state for restarting
+            st.session_state.user_answers = []
+            st.session_state.shuffled_options = {}
             st.session_state.last_settings = {
                 "username": st.session_state.username,
                 "mode": quiz_mode,
                 "selected_chapters": selected_chapters,
                 "num_questions": num_questions
             }
-
-            # Generate questions
             st.session_state.questions = generate_quiz_questions(
                 st.session_state.last_settings["username"],
                 st.session_state.last_settings["mode"],
@@ -146,21 +127,13 @@ if not st.session_state.is_admin_mode:
                 chapter_mapping,
                 WRONG_LOG
             )
-
-            # If no questions were generated, reset quiz_started
             if st.session_state.questions.empty:
                  st.session_state.quiz_started = False
-                 # Warning is already shown inside generate_quiz_questions
 
-
-# --- Sidebar - Admin Mode Switch (Placed below quiz settings/start button) ---
 st.sidebar.markdown("---")
 st.session_state.is_admin_mode = st.sidebar.checkbox("🛠️ 啟用管理者模式", key="admin_mode_checkbox")
 
-
 # --- Main Content Area ---
-
-# Display Admin Interface if in Admin Mode
 if st.session_state.is_admin_mode:
     st.header("🔒 管理者登入")
     admin_pwd = st.text_input("請輸入管理者密碼", type="password", key="admin_pwd_input")
@@ -197,12 +170,10 @@ if st.session_state.is_admin_mode:
                             ws = wb[SHEET_NAME]
                             for row in ws.iter_rows(min_row=2):
                                 if str(row[0].value) == str(selected_row_data.get("章節", None)) and str(row[1].value) == str(selected_row_data.get("題號", None)):
-                                    # Update option cells (assuming columns C, D, E, F are A, B, C, D - index 2, 3, 4, 5)
                                     row[2].value = new_A
                                     row[3].value = new_B
                                     row[4].value = new_C
                                     row[5].value = new_D
-                                    # Update explanation cell (assuming column J is 解析 - index 9)
                                     row[9].value = new_expl
                                     break
                             wb.save(EXCEL_PATH)
@@ -268,7 +239,6 @@ if st.session_state.is_admin_mode:
     elif admin_pwd != "":
          st.error("密碼錯誤")
 
-
 # Display Quiz Interface if not in Admin Mode and quiz is started
 else: # st.session_state.is_admin_mode is False
     # In quiz mode, define the valid answer labels
@@ -292,7 +262,7 @@ else: # st.session_state.is_admin_mode is False
             shuffled_key = f"q{i}_options_quiz"
             if shuffled_key not in st.session_state.shuffled_options:
                 options = [row.get('A', ''), row.get('B', ''), row.get('C', ''), row.get('D', '')]
-                options = [str(opt) if opt is not None else "N/A" for opt in options] # Handle potential None
+                options = [str(opt) if opt is not None else "N/A" for opt in options]
                 zipped = list(zip(labels, options))
                 random.shuffle(zipped)
                 st.session_state.shuffled_options[shuffled_key] = zipped
@@ -302,115 +272,80 @@ else: # st.session_state.is_admin_mode is False
             # Show A.B.C.D labels if the question was answered *before this loop iteration started*
             if answered_item_at_start_of_rerun is not None:
                 display_options = [f"{label}. {opt_text}" for label, opt_text in zipped]
-            else: # If not answered yet (at loop start), just show option text
+            else:
                 display_options = [opt_text for label, opt_text in zipped]
 
             # --- Determine the index of the option that should be initially selected ---
-            # This logic restores the selected state of the radio button across reruns
             initial_selection_index = None
-            # Get the currently selected value for this radio button from session state (persists across reruns)
-            current_radio_state_value = st.session_state.get(question_key) # This holds the value returned by st.radio in the previous rerun
+            current_radio_state_value = st.session_state.get(question_key)
 
             if current_radio_state_value is not None:
-                # Find the index of the currently selected item in the *display_options* list
                 try:
-                     # Attempt direct index match first (works if format in state matches current display format)
                      initial_selection_index = display_options.index(current_radio_state_value)
                 except ValueError:
-                     # If direct match fails, it's likely because the format in state (from previous rerun)
-                     # doesn't match the current display_options format (in this rerun).
-                     # Try to find the index based on the original text content.
                      original_text_from_state = None
-
-                     # Find the original text that corresponds to the value stored in state
                      for label, opt_text in zipped:
-                          # Check if the state value matches the original text OR the formatted text
                           if current_radio_state_value == opt_text or (isinstance(current_radio_state_value, str) and current_radio_state_value == f"{label}. {opt_text}"):
                               original_text_from_state = opt_text
-                              break # Found the match
+                              break
 
-                     # If original text was found, find its index in the *current* display_options
                      if original_text_from_state is not None:
                          for j, display_str in enumerate(display_options):
-                              # Check if the current display string contains or ends with the original text
                               if isinstance(display_str, str) and original_text_from_state in display_str:
                                    initial_selection_index = j
-                                   break # Found the index in current display options
-
+                                   break
 
             with st.container():
-                st.markdown(f"**Q{i + 1}. {row.get('題目', 'N/A')}**") # Use .get for safety
+                st.markdown(f"**Q{i + 1}. {row.get('題目', 'N/A')}**")
 
                 # Display radio buttons
-                # Disable if the question was answered *before this loop iteration started*
+                disabled_status = answered_item_at_start_of_rerun is not None
                 selected = st.radio("選項：", display_options,
                                     key=question_key,
                                     index=initial_selection_index,
-                                    disabled=answered_item_at_start_of_rerun is not None) # Disable based on state before this rerun
+                                    disabled=disabled_status)
 
 
                 # --- Handle Feedback, Explanation, and Recording if Selected ---
-                # This block runs if the radio button has a value in this rerun (selected is not None).
-                # It could be a new selection OR the re-display of a previously selected value.
                 if selected is not None:
+                    answered_item_before_recording = next((item for item in st.session_state.user_answers if item.get("章節") == row.get("章節") and item.get("題號") == row.get("題號")), None)
 
-                    # Find if this question has been answered and recorded in the session state list *before* this recording logic runs
-                    answered_item_before_recording = next((item for item in st.session_state.user_answers if item.get("章節") == row.get("章章") and item.get("題號") == row.get("題號")), None) # Typo here? Should be 章節
-
-
-                    # Check if this selection is a *new* answer that hasn't been recorded yet
                     if answered_item_before_recording is None:
                          # --- Record the New Answer ---
-                         # Get the original option text and label from the 'selected' display text
-                         # Since answered_item_at_start_of_rerun was None, display_options did NOT have labels when the user clicked.
-                         # So, 'selected' holds the original opt_text.
                          original_selected_text = selected
                          user_ans_label = next((label for label, opt_text in zipped if opt_text == original_selected_text), None)
 
-                         # Validate the original text and label were found
                          if original_selected_text is not None and user_ans_label is not None:
-                            correct_label_actual = str(row.get("解答", "")).strip().upper() # Ensure correct format
-                            # Validate correct label exists
-                            if correct_label_actual not in VALID_ANSWER_LABELS or not correct_label_actual: # Use constant here
+                            correct_label_actual = str(row.get("解答", "")).strip().upper()
+                            if correct_label_actual not in VALID_ANSWER_LABELS or not correct_label_actual:
                                 st.error(f"題目 {row.get('章節', 'N/A')}-{row.get('題號', 'N/A')} 的解答格式錯誤：'{row.get('解答', 'None')}'。此題無法記錄作答結果。")
-                                # Do not record if correct answer is invalid
                             else:
                                 is_correct = (user_ans_label == correct_label_actual)
 
-                                # Create the new answer item
                                 newly_answered_item = {
                                      "使用者": st.session_state.username,
                                      "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                      "正確答案": correct_label_actual,
-                                     "正確內容": row.get(correct_label_actual, "N/A"), # Get text of correct answer from row
+                                     "正確內容": row.get(correct_label_actual, "N/A"),
                                      "使用者答案": user_ans_label,
-                                     "使用者內容": original_selected_text, # Store original text
+                                     "使用者內容": original_selected_text,
                                      "章節": row.get("章節", "N/A"),
                                      "題號": row.get("題號", "N/A"),
                                      "題目": row.get("題目", "N/A"),
                                      "解析": row.get("解析", "無解析"),
                                      "是否正確": is_correct
                                 }
-                                # Append the new answer to the list in session state
                                 st.session_state.user_answers.append(newly_answered_item)
 
-
                                 # --- Display Feedback and Explanation for the NEW answer ---
-                                # Display immediately in THIS rerun using the newly created item
                                 if newly_answered_item.get("是否正確") is True:
                                     st.success(f"✅ 答對了！")
                                 else:
                                     st.error(f"❌ 答錯了。正確答案是：{newly_answered_item.get('正確答案', 'N/A')}. {newly_answered_item.get('正確內容', 'N/A')}")
                                 st.markdown(f"※{newly_answered_item.get('章節', 'N/A')}第{newly_answered_item.get('題號', 'N/A')}題解析：{newly_answered_item.get('解析', '無解析')}")
 
-                    # else: # If original_selected_text or user_ans_label were not found
-                        # This case indicates an unexpected issue with mapping selected value back to original options.
-                        # An error message is already displayed if correct answer is invalid.
-                        # No recording happens in this case.
-
                  else: # This question was already answered in a previous rerun (answered_item_before_recording is NOT None)
                       # --- Display Feedback and Explanation for the PREVIOUS answer ---
-                      # Use the item found before recording logic
                       if answered_item_before_recording.get("是否正確") is True:
                           st.success(f"✅ 答對了！")
                       else:
@@ -419,9 +354,6 @@ else: # st.session_state.is_admin_mode is False
 
 
         # --- Evaluate Quiz Completion and Display Results After the Loop ---
-        # This logic checks the FINAL state of st.session_state.user_answers after the loop finishes.
-
-        # Use the constant VALID_ANSWER_LABELS for consistency
         total_valid_questions_count = len([
              1 for _, row in st.session_state.questions.iterrows()
              if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
@@ -438,7 +370,6 @@ else: # st.session_state.is_admin_mode is False
         # --- Display Results and Restart Button ---
         if all_answered:
             st.markdown("---")
-            # Use total_valid_questions_count for consistency in results summary
             correct_count = sum(1 for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(str(q.get('章節', '')), str(q.get('題號', ''))) for _, q in st.session_state.questions.iterrows()] and item.get('是否正確') is True)
             st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions_count} 題，答對 {correct_count} 題")
 
@@ -512,7 +443,6 @@ else: # st.session_state.is_admin_mode is False
                  item for item in st.session_state.user_answers
                  if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]
              ])
-             # Use VALID_ANSWER_LABELS for calculating valid questions for progress display
              total_valid_questions_for_progress = len([
                   1 for _, row in st.session_state.questions.iterrows()
                   if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
