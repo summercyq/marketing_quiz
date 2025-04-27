@@ -35,9 +35,9 @@ if df.empty and not (mode == "管理者登入" and tool == "錯題紀錄管理" 
      st.stop() # Stop execution if dataframe is empty and not in specific admin mode
 
 # 章節對應關係
+# CH1 到 CH9
 chapter_mapping = {f"CH{i}": [f"{i}-1", f"{i}-2"] for i in range(1, 10)}
-# 增加CH10的處理
-chapter_mapping["CH10"] = ["10-1"] # Assuming CH10 only has 10-1
+# 原有的 CH10 處理已被刪除
 
 # 初始化 Session State
 for key in ["quiz_started", "questions", "user_answers", "shuffled_options", "last_settings"]:
