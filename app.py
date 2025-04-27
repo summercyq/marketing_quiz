@@ -302,17 +302,18 @@ else: # st.session_state.is_admin_mode is False
 
             # Find if this question was answered in a previous rerun within this quiz session
             # Here, we need the potentially *previously* stored answer to set the initial state (index, disabled)
+            # Ensure comparison keys are strings for robustness
             answered_item = next((item for item in st.session_state.user_answers
-                                  if str(item.get("章節")) == str(row.get("章節")) and str(item.get("題號")) == str(row.get("题号"))), None) # Corrected '题号' to '題號'
+                                  if str(item.get("章節")) == str(row.get("章節")) and str(item.get("題號")) == str(row.get("題號"))), None)
 
             with st.container():
                 st.markdown(f"**Q{i + 1}. {row.get('題目', 'N/A')}**") # Use .get for safety
+                # Get original options text and labels
                 options = [row.get('A', ''), row.get('B', ''), row.get('C', ''), row.get('D', '')]
+                labels = ['A', 'B', 'C', 'D']
 
                 # Handle potential None values in options gracefully
-                options = [str(opt) if opt is not None else "N/A" for opt in options]
-
-                labels = ['A', 'B', 'C', 'D']
+                options = [str(opt) if opt is not None else "" for opt in options] # Changed "N/A" to "" for cleaner display
 
                 # Shuffle options only once per question per session
                 shuffled_key = f"q{i}_options_quiz"
@@ -323,88 +324,83 @@ else: # st.session_state.is_admin_mode is False
                 else:
                     zipped = st.session_state.shuffled_options[shuffled_key]
 
-                label_to_opt = {label: opt for label, opt in zipped}
-                opt_to_label = {opt: label for label, opt in zipped}
+                # Create mappings from the *shuffled* order
+                shuffled_labels = [item[0] for item in zipped]
+                shuffled_options_text = [item[1] for item in zipped]
+                label_to_opt_shuffled = dict(zipped) # {'Shuffled_Label': 'Shuffled_Text'}
+                opt_to_label_shuffled = {v: k for k, v in label_to_opt_shuffled.items()} # {'Shuffled_Text': 'Shuffled_Label'}
+
+                # We still need the original mapping for correct_text lookup
+                original_label_to_opt = {'A': row.get('A', ''), 'B': row.get('B', ''), 'C': row.get('C', ''), 'D': row.get('D', '')}
+
 
                 correct_label = str(row.get("解答", "")).strip().upper()
                 # Validate correct label - Keep this check for displaying errors
                 if correct_label not in labels or not correct_label:
                     st.error(f"題目 {row.get('章節', 'N/A')}-{row.get('題號', 'N/A')} 的解答格式錯誤：'{row.get('解答', 'None')}'。應為 A, B, C, 或 D。此題無法作答。")
-                    # all_answered = False # <-- Still removed
                     continue # Skip this question's radio button and processing
 
-                correct_text = row.get(correct_label, "無效的解答選項文字")
-
-                # Determine the pre-selected index based on answered_item
-                selected_index_for_radio = None
-                if answered_item:
-                     try:
-                         # Find the index of the user's answer text within the current shuffled options
-                         selected_index_for_radio = [opt for _, opt in zipped].index(answered_item.get("使用者內容"))
-                     except ValueError:
-                         # Should not happen if answered_item["使用者內容"] comes from options, but good practice
-                         selected_index_for_radio = None
+                # Get the correct answer text using the original mapping
+                correct_text = original_label_to_opt.get(correct_label, "無效的解答選項文字")
 
 
-                # Display radio buttons
-                display_options_formatted = [f"{label}. {opt_text}" for label, opt_text in zipped] # Format options for display
-                # We need to find the index in display_options_formatted based on answered_item.get("使用者內容")
-                answered_display_index = None
-                if answered_item:
-                     try:
-                         # Find the full formatted string in display_options_formatted
-                         # The stored answer text is answered_item.get("使用者內容")
-                         # The formatted option in the list is f"{answered_item.get('使用者答案', '')}. {answered_item.get('使用者內容', '')}"
-                         # Let's try matching the original text part directly for simplicity with the shuffled options.
-                         # Find the index in the original 'zipped' list based on the original answer label
-                         # or, find the index in the displayed options based on the user's selected content text
-                         answered_content_text = answered_item.get("使用者內容")
-                         # Find the index of the answered content text in the current shuffled options texts
-                         option_texts_in_shuffled_order = [opt_text for label, opt_text in zipped]
-                         answered_index_in_shuffled_options = None
-                         try:
-                              answered_index_in_shuffled_options = option_texts_in_shuffled_order.index(answered_content_text)
-                         except ValueError:
-                              pass # Should not happen if the data is consistent
+                # --- START: Adjusted Section for conditional display and index ---
 
-                         # The index for st.radio is the index in the display_options list
-                         answered_display_index = answered_index_in_shuffled_options
+                display_options = [] # List to hold options shown in st.radio
+                selected_index_for_radio = None # Index for st.radio pre-selection
 
-                     except Exception as e:
-                          st.error(f"Error finding answered item index for display: {e}")
-                          answered_display_index = None
+                # Build the list of options to display and determine the pre-selected index if answered
+                if answered_item is not None:
+                    # If answered, format options with label (e.g., "A. Option Text")
+                    # Use the labels and texts from the *shuffled* zipped list
+                    answered_content_text = answered_item.get("使用者內容")
+                    for idx, (label, opt_text) in enumerate(zipped):
+                        formatted_option = f"{label}. {opt_text}"
+                        display_options.append(formatted_option)
+                        # Find the index if this option text matches the user's previous answer content
+                        if opt_text == answered_content_text:
+                             selected_index_for_radio = idx
+
+                else:
+                    # If not answered, display only the option text (e.g., "Option Text")
+                    # Use the texts from the *shuffled* zipped list
+                    for idx, (label, opt_text) in enumerate(zipped):
+                        display_options.append(opt_text)
+                    # selected_index_for_radio remains None initially for unanswered questions
 
 
-                selected = st.radio("選項：", display_options_formatted, # Use the formatted options for display
+                # --- END: Adjusted Section for conditional display and index ---
+
+
+                # Display radio buttons using the conditionally built display_options list
+                # If answered_item is not None, index will be set and disabled=True
+                # If answered_item is None, index will be None and disabled=False
+                selected = st.radio("選項：", display_options,
                                      key=question_key,
-                                     index=answered_display_index, # Use the determined index
+                                     index=selected_index_for_radio, # Use the determined index
                                      disabled=answered_item is not None) # Disable if already answered
 
-                # Process answer if selected AND it hasn't been processed in a previous rerun of *this specific question*
-                # The key thing is that selected now contains the *formatted* string, e.g., "A. Option A Text"
-                # We need to extract the original option text from the selected string
+                # --- START: Adjusted Section for processing selected answer and feedback ---
+                # If the user selected an answer in this rerun AND it wasn't previously answered
                 if selected is not None and answered_item is None:
-                    # Extract the option text from the selected string (e.g., "A. Option A Text" -> "Option A Text")
-                    # Find which of the original zipped options corresponds to the selected formatted string
-                    user_selected_option_text = None
-                    user_ans_label = "未選"
-                    for label, opt_text in zipped:
-                         if f"{label}. {opt_text}" == selected:
-                              user_selected_option_text = opt_text
-                              user_ans_label = label
-                              break
+                    # In this block (answered_item is None), 'selected' is the raw option text
+                    user_selected_option_text = selected
 
+                    # Find the original label (A, B, C, D) corresponding to this text
+                    # Use the opt_to_label_shuffled mapping which correctly maps text to its shuffled label
+                    user_ans_label = opt_to_label_shuffled.get(user_selected_option_text)
 
-                    is_correct = (user_ans_label == correct_label) # Compare labels
+                    # Determine correctness based on the original correct_label and the user's chosen label
+                    is_correct = (user_ans_label == correct_label)
 
                     # Add to temporary list for this render cycle's new answers
                     temp_user_answers.append({
                         "使用者": st.session_state.username,
                         "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "正確答案": correct_label,
-                        "正確內容": correct_text,
-                        "使用者答案": user_ans_label, # Store the original label (A, B, C, D)
-                        "使用者內容": user_selected_option_text, # Store the original option text
+                        "正確答案": correct_label, # Store the original correct label
+                        "正確內容": correct_text, # Store the original correct text
+                        "使用者答案": user_ans_label if user_ans_label is not None else "未選", # Store the user's chosen label (A, B, C, D based on shuffle)
+                        "使用者內容": user_selected_option_text, # Store the original option text content user selected
                         "章節": row.get("章節", "N/A"),
                         "題號": row.get("題號", "N/A"),
                         "題目": row.get("題目", "N/A"),
@@ -412,21 +408,28 @@ else: # st.session_state.is_admin_mode is False
                         "是否正確": is_correct
                     })
 
-                    # Display feedback immediately after selection
+                    # Display feedback and explanation immediately after selection
                     if is_correct:
                         st.success(f"✅ 答對了！")
                     else:
+                        # Find the correct option text using the correct_label
                         st.error(f"❌ 答錯了。正確答案是：{correct_label}. {correct_text}")
 
-                    # Display explanation immediately after selection
+                    # Display explanation
                     st.markdown(f"※章節{row.get('章節', 'N/A')} 第{row.get('題號', 'N/A')}題解析：{row.get('解析', '無解析')}")
+
+                # If the question was already answered (in a previous rerun)
                 elif answered_item is not None:
-                    # If already answered, just display feedback and explanation based on stored data
+                    # Display feedback and explanation based on stored data.
+                    # The display_options contained formatted text ("A. Option Text") when this was rendered as answered.
+                    # We need the data from the stored answered_item for feedback.
                     if answered_item.get("是否正確") is True:
                          st.success(f"✅ 答對了！")
                     else:
                          st.error(f"❌ 答錯了。正確答案是：{answered_item.get('正確答案', 'N/A')}. {answered_item.get('正確內容', 'N/A')}")
                     st.markdown(f"※{answered_item.get('章節', 'N/A')}第{answered_item.get('題號', 'N/A')}題解析：{answered_item.get('解析', '無解析')}")
+
+                # --- END: Adjusted Section for processing selected answer and feedback ---
 
 
         # Append newly recorded answers (from this rerun) to the session state list
@@ -471,22 +474,24 @@ else: # st.session_state.is_admin_mode is False
             st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions} 題，答對 {correct_count} 題")
 
             # --- Logging Wrong Answers (after quiz completion) ---
+            # Only log wrong answers that were *newly recorded* in the temp_user_answers list during this completion render
             wrong_answers_this_quiz_run = [
                  item for item in temp_user_answers # Use temp_user_answers
                  if item.get("是否正確") is False
              ]
 
             if wrong_answers_this_quiz_run:
-                 # ... (existing logging logic - ensure the check against valid_questions_in_quiz_keys is done here too if logging all answers,
-                 # but since we use temp_user_answers, they are by definition from the current quiz.
-                 # However, let's add the valid question check for robustness)
                  try:
+                     # Load existing log or create new
                      if os.path.exists(WRONG_LOG):
                          df_wrong_log = pd.read_csv(WRONG_LOG)
                      else:
+                         # Define columns explicitly for a new dataframe
                          df_wrong_log = pd.DataFrame(columns=["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"])
 
+                     # Append new wrong answers, avoiding duplicates for the same user/question combination
                      new_wrong_entries = []
+                     # Create a set of existing wrong answers by user, chapter, question number (as strings)
                      existing_wrong_keys = set(tuple(map(str, row[["使用者", "章節", "題號"]].tolist())) for _, row in df_wrong_log.iterrows())
 
                      for entry in wrong_answers_this_quiz_run:
@@ -514,6 +519,7 @@ else: # st.session_state.is_admin_mode is False
                          df_new_wrong = df_new_wrong.reindex(columns=required_cols)
                          df_wrong_log = pd.concat([df_wrong_log, df_new_wrong], ignore_index=True)
                          df_wrong_log.to_csv(WRONG_LOG, index=False)
+                         # st.info(f"已記錄 {len(new_wrong_entries)} 筆錯題到錯題紀錄。") # Optional: show confirmation
 
                  except Exception as e:
                      st.error(f"記錄錯題時發生錯誤：{e}")
