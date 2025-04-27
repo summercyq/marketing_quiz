@@ -187,7 +187,7 @@ if mode == "管理者登入":
                                 df_wrong = df_wrong[df_wrong["使用者"].str.lower() != target_user.lower()]
                                 df_wrong.to_csv(WRONG_LOG, index=False)
                                 st.success(f"已清除使用者 `{target_user}` 的錯題紀錄")
-                                st.experimental_rerun() # Rerun to update the user list
+                                st.rerun() # Rerun to update the user list
 
                         elif submode == "全部使用者":
                             # Add a confirmation step for clearing all
@@ -195,7 +195,7 @@ if mode == "管理者登入":
                             if st.button("🧨 確認清除全部錯題", key="clear_all_wrong_button"): # Added key
                                 os.remove(WRONG_LOG)
                                 st.success("已清除所有錯題紀錄檔案")
-                                st.experimental_rerun() # Rerun to update the view
+                                st.rerun() # Rerun to update the view
                 except pd.errors.EmptyDataError:
                     st.info("錯題紀錄檔案為空。")
                 except FileNotFoundError:
@@ -444,8 +444,8 @@ else: # mode is "一般出題模式" or "錯題再練模式"
                     if st.session_state.questions.empty:
                         st.session_state.quiz_started = False
                         st.warning("找不到符合條件的題目，無法重新出題。請檢查設定或錯題紀錄。")
-                    # else: # 移除這整個 else 區塊和裡面的 st.experimental_rerun()
-                        # st.experimental_rerun() # Rerun to display the new set of questions
+                    # else: # 移除這整個 else 區塊和裡面的 st.rerun()
+                        # st.rerun() # Rerun to display the new set of questions
 
 
                  else:
