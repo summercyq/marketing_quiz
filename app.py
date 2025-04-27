@@ -444,7 +444,7 @@ else: # st.session_state.is_admin_mode is False
                     st.error("無法找到上一次的測驗設定。請使用側邊欄重新開始。")
         else:
              st.markdown("---")
-             # Calculate valid questions for progress display (should be the same as final_total_valid_questions)
+             # Use VALID_ANSWER_LABELS for calculating valid questions for progress display (should be the same as final_total_valid_questions)
              progress_total_valid = len([
                   1 for _, row in st.session_state.questions.iterrows()
                   if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
