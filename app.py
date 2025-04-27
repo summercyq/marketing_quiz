@@ -421,7 +421,7 @@ else: # mode is "一般出題模式" or "錯題再練模式"
                     st.error(f"記錄錯題時發生錯誤：{e}")
 
 
-            # --- Restart Button ---
+           # --- Restart Button ---
             # This button will now use the last_settings
             if st.button("🔄 重新出題", key="restart_quiz_button_completed"): # Added key
                  if st.session_state.last_settings:
@@ -444,8 +444,9 @@ else: # mode is "一般出題模式" or "錯題再練模式"
                     if st.session_state.questions.empty:
                         st.session_state.quiz_started = False
                         st.warning("找不到符合條件的題目，無法重新出題。請檢查設定或錯題紀錄。")
-                    else:
-                        st.experimental_rerun() # Rerun to display the new set of questions
+                    # else: # 移除這整個 else 區塊和裡面的 st.experimental_rerun()
+                        # st.experimental_rerun() # Rerun to display the new set of questions
+
 
                  else:
                     # This case should theoretically not happen if the button is only shown after a quiz
