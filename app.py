@@ -374,7 +374,7 @@ else: # st.session_state.is_admin_mode is False
                         st.error(f"❌ 答錯了。正確答案是：{correct_label}. {correct_text}")
 
                     # Display explanation immediately after selection
-                    st.markdown(f"※{row.get章節('章節', 'N/A')}第{row.get('題號', 'N/A')}題解析：{row.get('解析', '無解析')}")
+                    st.markdown(f"※章節{row.get('章節', 'N/A')} 第{row.get('題號', 'N/A')}題解析：{row.get('解析', '無解析')}")
                 elif answered_item is not None:
                     # If already answered, just display feedback and explanation
                     if answered_item.get("是否正確") is True:
