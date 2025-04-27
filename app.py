@@ -286,10 +286,13 @@ if st.session_state.is_admin_mode:
 # ... (前面的程式碼都保留) ...
 
 # Display Quiz Interface if not in Admin Mode and quiz is started
+# ... (code before the else: # st.session_state.is_admin_mode is False block) ...
+
+# Display Quiz Interface if not in Admin Mode and quiz is started
 else: # st.session_state.is_admin_mode is False
     if st.session_state.quiz_started and st.session_state.questions is not None and not st.session_state.questions.empty:
         total_questions = len(st.session_state.questions)
-        # all_answered = True # <-- 這裡移除，等迴圈跑完再判斷
+        # all_answered = True # <-- Still removed
 
         # Collect answers in a temporary list for this render cycle
         temp_user_answers = []
@@ -298,9 +301,9 @@ else: # st.session_state.is_admin_mode is False
             question_key = f"q{i}_quiz" # Unique key for the radio button in quiz mode
 
             # Find if this question was answered in a previous rerun within this quiz session
-            # 這裡使用 get 檢查，並確保 章節 和 題號 都是字串，以避免潛在的類型不匹配問題
+            # Here, we need the potentially *previously* stored answer to set the initial state (index, disabled)
             answered_item = next((item for item in st.session_state.user_answers
-                                  if str(item.get("章節")) == str(row.get("章節")) and str(item.get("題號")) == str(row.get("題號"))), None)
+                                  if str(item.get("章節")) == str(row.get("章節")) and str(item.get("題號")) == str(row.get("题号"))), None) # Corrected '题号' to '題號'
 
             with st.container():
                 st.markdown(f"**Q{i + 1}. {row.get('題目', 'N/A')}**") # Use .get for safety
@@ -327,7 +330,7 @@ else: # st.session_state.is_admin_mode is False
                 # Validate correct label - Keep this check for displaying errors
                 if correct_label not in labels or not correct_label:
                     st.error(f"題目 {row.get('章節', 'N/A')}-{row.get('題號', 'N/A')} 的解答格式錯誤：'{row.get('解答', 'None')}'。應為 A, B, C, 或 D。此題無法作答。")
-                    # all_answered = False # <-- 這裡移除，不要影響後續的整體判斷
+                    # all_answered = False # <-- Still removed
                     continue # Skip this question's radio button and processing
 
                 correct_text = row.get(correct_label, "無效的解答選項文字")
@@ -344,18 +347,55 @@ else: # st.session_state.is_admin_mode is False
 
 
                 # Display radio buttons
-                selected = st.radio("選項：", display_options, # display_options is correctly built above
+                display_options_formatted = [f"{label}. {opt_text}" for label, opt_text in zipped] # Format options for display
+                # We need to find the index in display_options_formatted based on answered_item.get("使用者內容")
+                answered_display_index = None
+                if answered_item:
+                     try:
+                         # Find the full formatted string in display_options_formatted
+                         # The stored answer text is answered_item.get("使用者內容")
+                         # The formatted option in the list is f"{answered_item.get('使用者答案', '')}. {answered_item.get('使用者內容', '')}"
+                         # Let's try matching the original text part directly for simplicity with the shuffled options.
+                         # Find the index in the original 'zipped' list based on the original answer label
+                         # or, find the index in the displayed options based on the user's selected content text
+                         answered_content_text = answered_item.get("使用者內容")
+                         # Find the index of the answered content text in the current shuffled options texts
+                         option_texts_in_shuffled_order = [opt_text for label, opt_text in zipped]
+                         answered_index_in_shuffled_options = None
+                         try:
+                              answered_index_in_shuffled_options = option_texts_in_shuffled_order.index(answered_content_text)
+                         except ValueError:
+                              pass # Should not happen if the data is consistent
+
+                         # The index for st.radio is the index in the display_options list
+                         answered_display_index = answered_index_in_shuffled_options
+
+                     except Exception as e:
+                          st.error(f"Error finding answered item index for display: {e}")
+                          answered_display_index = None
+
+
+                selected = st.radio("選項：", display_options_formatted, # Use the formatted options for display
                                      key=question_key,
-                                     index=selected_index_for_radio, # Use the determined index
+                                     index=answered_display_index, # Use the determined index
                                      disabled=answered_item is not None) # Disable if already answered
 
                 # Process answer if selected AND it hasn't been processed in a previous rerun of *this specific question*
-                # Check if the selected value is different from the previously recorded one (if any)
-                # This handles the case where the user clicks the already selected option again (though disabled prevents this)
-                # The main check is still `answered_item is None` because disabled=True prevents changes once answered.
+                # The key thing is that selected now contains the *formatted* string, e.g., "A. Option A Text"
+                # We need to extract the original option text from the selected string
                 if selected is not None and answered_item is None:
-                    user_ans_label = opt_to_label.get(selected) # Get the original A/B/C/D label
-                    is_correct = (user_ans_label == correct_label)
+                    # Extract the option text from the selected string (e.g., "A. Option A Text" -> "Option A Text")
+                    # Find which of the original zipped options corresponds to the selected formatted string
+                    user_selected_option_text = None
+                    user_ans_label = "未選"
+                    for label, opt_text in zipped:
+                         if f"{label}. {opt_text}" == selected:
+                              user_selected_option_text = opt_text
+                              user_ans_label = label
+                              break
+
+
+                    is_correct = (user_ans_label == correct_label) # Compare labels
 
                     # Add to temporary list for this render cycle's new answers
                     temp_user_answers.append({
@@ -363,8 +403,8 @@ else: # st.session_state.is_admin_mode is False
                         "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "正確答案": correct_label,
                         "正確內容": correct_text,
-                        "使用者答案": user_ans_label if user_ans_label is not None else "未選",
-                        "使用者內容": selected, # Store the displayed text
+                        "使用者答案": user_ans_label, # Store the original label (A, B, C, D)
+                        "使用者內容": user_selected_option_text, # Store the original option text
                         "章節": row.get("章節", "N/A"),
                         "題號": row.get("題號", "N/A"),
                         "題目": row.get("題目", "N/A"),
@@ -392,242 +432,127 @@ else: # st.session_state.is_admin_mode is False
         # Append newly recorded answers (from this rerun) to the session state list
         st.session_state.user_answers.extend(temp_user_answers)
 
-        # --- 修正 all_answered 和 correct_count 的計算邏輯 ---
-        # 在迴圈結束後，根據 session_state.user_answers 來判斷是否所有題目都已回答
-        # 並且只考慮那些正確解答格式有效的題目
-        valid_questions_in_quiz = [
+        # --- Recalculate all_answered and correct_count after the loop ---
+        # Invalidate questions with invalid correct answers
+        valid_questions_in_quiz_keys = [
             (str(q.get("章節", "")), str(q.get("題號", "")))
             for _, q in st.session_state.questions.iterrows()
-            if str(q.get("解答", "")).strip().upper() in ['A', 'B', 'C', 'D'] # 只計算解答格式正確的題目
+            if str(q.get("解答", "")).strip().upper() in ['A', 'B', 'C', 'D']
         ]
-        total_valid_questions = len(valid_questions_in_quiz)
+        total_valid_questions = len(valid_questions_in_quiz_keys)
 
-        # 找出 session_state.user_answers 中屬於本次測驗的題目 (以 章節+題號 作為唯一識別)
-        answered_question_keys = set(
+        # Count how many valid questions in the current quiz have an answer recorded in session_state.user_answers
+        answered_valid_question_keys = set(
             (str(item.get("章節", "")), str(item.get("題號", "")))
             for item in st.session_state.user_answers
-            if (str(item.get("章節", "")), str(item.get("題號", ""))) in valid_questions_in_quiz # 只考慮回答了本次測驗的題目
+            if (str(item.get("章節", "")), str(item.get("題號", ""))) in valid_questions_in_quiz_keys
         )
 
-        # 判斷是否所有有效題目都已回答
-        # 條件：回答的有效題目數量 等於 本次測驗的有效題目總數，且有效題目總數大於 0 (避免題庫為空的情況誤判)
-        all_answered = len(answered_question_keys) == total_valid_questions and total_valid_questions > 0
+        # all_answered is true if the count of answered valid questions matches the total count of valid questions
+        all_answered = len(answered_valid_question_keys) == total_valid_questions and total_valid_questions > 0
 
-        # 重新計算答對題數，同樣只考慮有效題目
-        correct_count = sum(
-            1 for item in st.session_state.user_answers
-            if item.get("是否正確") is True
-            and (str(item.get("章節", "")), str(item.get("題號", ""))) in valid_questions_in_quiz # 只計算本次測驗中答對的有效題目
-        )
+
+        # Recalculate correct count by iterating through the *current quiz questions*
+        correct_count = 0
+        for _, q_row in st.session_state.questions.iterrows():
+             q_key = (str(q_row.get("章節")), str(q_row.get("題號")))
+             # Only count if the question is valid and an answer is recorded for it
+             if q_key in valid_questions_in_quiz_keys:
+                  answered_item = next((item for item in st.session_state.user_answers
+                                        if (str(item.get("章節")), str(item.get("題號"))) == q_key), None)
+                  # If an answer was found and it was correct
+                  if answered_item is not None and answered_item.get("是否正確") is True:
+                       correct_count += 1
 
 
         # --- Display Results and Restart Button ---
-        # 現在這個判斷是準確的，根據迴圈後計算出的 all_answered
         if all_answered:
             st.markdown("---")
-            st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions} 題，答對 {correct_count} 題") # 使用 total_valid_questions 顯示總題數
+            st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions} 題，答對 {correct_count} 題")
 
             # --- Logging Wrong Answers (after quiz completion) ---
-            # 記錄錯誤的邏輯可以保留，它只需要 logging 當前這次完成時，temp_user_answers 中的錯題
             wrong_answers_this_quiz_run = [
-                item for item in temp_user_answers # 只使用當前這次 rerun 新增的答案來判斷哪些錯題需要記錄
-                if item.get("是否正確") is False
-            ]
+                 item for item in temp_user_answers # Use temp_user_answers
+                 if item.get("是否正確") is False
+             ]
 
             if wrong_answers_this_quiz_run:
-                try:
-                    # Load existing log or create new
-                    if os.path.exists(WRONG_LOG):
-                        df_wrong_log = pd.read_csv(WRONG_LOG)
-                    else:
-                        # Define columns explicitly for a new dataframe
-                        df_wrong_log = pd.DataFrame(columns=["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"])
+                 # ... (existing logging logic - ensure the check against valid_questions_in_quiz_keys is done here too if logging all answers,
+                 # but since we use temp_user_answers, they are by definition from the current quiz.
+                 # However, let's add the valid question check for robustness)
+                 try:
+                     if os.path.exists(WRONG_LOG):
+                         df_wrong_log = pd.read_csv(WRONG_LOG)
+                     else:
+                         df_wrong_log = pd.DataFrame(columns=["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"])
 
-                    # Append new wrong answers, avoiding duplicates for the same user/question combination
-                    new_wrong_entries = []
-                    # Create a set of existing wrong answers by user, chapter, question number (as strings)
-                    existing_wrong_keys = set(tuple(map(str, row[["使用者", "章節", "題號"]].tolist())) for _, row in df_wrong_log.iterrows())
+                     new_wrong_entries = []
+                     existing_wrong_keys = set(tuple(map(str, row[["使用者", "章節", "題號"]].tolist())) for _, row in df_wrong_log.iterrows())
 
-                    for entry in wrong_answers_this_quiz_run:
-                        # Create a key for the current entry (as strings)
-                        entry_key = (str(entry.get("使用者", "")), str(entry.get("章節", "")), str(entry.get("題號", "")))
-                        # Ensure the entry corresponds to a valid question in the current quiz before logging
-                        if entry_key not in existing_wrong_keys and (str(entry.get("章節", "")), str(entry.get("題號", ""))) in valid_questions_in_quiz:
-                             # Ensure columns match before appending, use .get with default for safety
-                             entry_to_append = {
-                                 "使用者": entry.get("使用者", ""),
-                                 "時間": entry.get("時間", ""),
-                                 "章節": entry.get("章節", ""),
-                                 "題號": entry.get("題號", ""),
-                                 "題目": entry.get("題目", ""),
-                                 "使用者答案": entry.get("使用者答案", ""),
-                                 "使用者內容": entry.get("使用者內容", ""),
-                                 "正確答案": entry.get("正確答案", ""),
-                                 "正確內容": entry.get("正確內容", ""),
-                                 "解析": entry.get("解析", "")
-                             }
-                             new_wrong_entries.append(entry_to_append)
-                             existing_wrong_keys.add(entry_key) # Add to set to prevent adding duplicates within the current batch
+                     for entry in wrong_answers_this_quiz_run:
+                         entry_key = (str(entry.get("使用者", "")), str(entry.get("章節", "")), str(entry.get("題號", "")))
+                         # Check if the question is valid AND the entry is not a duplicate in the log
+                         if (str(entry.get("章節", "")), str(entry.get("題號", ""))) in valid_questions_in_quiz_keys and entry_key not in existing_wrong_keys:
+                              entry_to_append = {
+                                  "使用者": entry.get("使用者", ""),
+                                  "時間": entry.get("時間", ""),
+                                  "章節": entry.get("章節", ""),
+                                  "題號": entry.get("題號", ""),
+                                  "題目": entry.get("題目", ""),
+                                  "使用者答案": entry.get("使用者答案", ""),
+                                  "使用者內容": entry.get("使用者內容", ""),
+                                  "正確答案": entry.get("正確答案", ""),
+                                  "正確內容": entry.get("正確內容", ""),
+                                  "解析": entry.get("解析", "")
+                              }
+                              new_wrong_entries.append(entry_to_append)
+                              existing_wrong_keys.add(entry_key)
 
-                    if new_wrong_entries:
-                        df_new_wrong = pd.DataFrame(new_wrong_entries)
-                        # Ensure columns match before concatenating - reorder if necessary
-                        required_cols = ["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"]
-                        df_new_wrong = df_new_wrong.reindex(columns=required_cols)
+                     if new_wrong_entries:
+                         df_new_wrong = pd.DataFrame(new_wrong_entries)
+                         required_cols = ["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"]
+                         df_new_wrong = df_new_wrong.reindex(columns=required_cols)
+                         df_wrong_log = pd.concat([df_wrong_log, df_new_wrong], ignore_index=True)
+                         df_wrong_log.to_csv(WRONG_LOG, index=False)
 
-                        df_wrong_log = pd.concat([df_wrong_log, df_new_wrong], ignore_index=True)
-                        df_wrong_log.to_csv(WRONG_LOG, index=False)
-                        # st.info(f"已記錄 {len(new_wrong_entries)} 筆錯題到錯題紀錄。") # Optional: show confirmation
-
-                except Exception as e:
-                    st.error(f"記錄錯題時發生錯誤：{e}")
-
-
-            # --- Restart Button (in Main Area after results) ---
-            if st.button("🔄 重新出題", key="restart_quiz_button_completed"):
-                if st.session_state.last_settings:
-                    st.session_state.quiz_started = True # Indicate a new quiz should start
-                    st.session_state.user_answers = [] # Reset answers for the new quiz
-                    st.session_state.shuffled_options = {} # Reset shuffled options
-
-                    # Regenerate questions using the saved settings
-                    st.session_state.questions = generate_quiz_questions(
-                        st.session_state.last_settings["username"],
-                        st.session_state.last_settings["mode"], # Use mode from last_settings
-                        st.session_state.last_settings["selected_chapters"],
-                        st.session_state.last_settings["num_questions"],
-                        df,
-                        chapter_mapping,
-                        WRONG_LOG
-                    )
-
-                    # If regeneration failed (e.g., no wrong questions left), stop the quiz
-                    if st.session_state.questions.empty:
-                        st.session_state.quiz_started = False
-                        # st.warning("找不到符合條件的題目，無法重新出題。請檢查設定或錯題紀錄。") # 這裡可以保留或移除，因為 generate_quiz_questions 內部已經有提示了
-                        # No rerun needed, as quiz_started=False will stop display on next rerun
-                    st.rerun() # 新增 st.rerun() 確保畫面立即刷新並開始新的測驗
-
-                else:
-                    st.error("無法找到上一次的測驗設定。請使用側邊欄重新開始。")
-
-
-        else:
-            # 如果不是全部作答完畢，顯示進度
-            answered_count_for_current_quiz = len(answered_question_keys) # 已經回答的有效題目數量
-            st.markdown("---")
-            # 顯示進度時，考慮有效題目總數
-            st.info(f"已回答 {answered_count_for_current_quiz} / {total_valid_questions} 題。")
-            if total_valid_questions > 0: # 如果有有效題目，才提示繼續作答
-                st.markdown("請繼續作答。")
-            elif total_questions > 0 and total_valid_questions == 0: # 如果有題目但都無效解答
-                 st.warning("本次測驗中的所有題目解答格式均無效，無法完成作答。請通知管理者修正題庫。")
-            # 如果 total_questions == 0，表示題庫為空，generate_quiz_questions 應該已經有提示了，這裡不用額外顯示
-
-    # Implicit else: If quiz_started is False, nothing is displayed in the main area except the title.
-
-
-        # Append newly recorded answers (from this rerun) to the session state list
-        st.session_state.user_answers.extend(temp_user_answers)
-
-        # Recalculate correct count based on all *recorded* answers for *this specific quiz set*
-        # This ensures count is correct even if navigating away and back, or rerunning.
-        correct_count = sum(
-            1 for item in st.session_state.user_answers
-            if item.get("是否正確") is True and (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()] # Ensure comparison types match
-        )
-
-
-        # --- Display Results and Restart Button ---
-        # Only show total score and restart button if all questions are answered
-        if all_answered:
-            st.markdown("---")
-            st.markdown(f"### 🎯 本次測驗結果：總計 {total_questions} 題，答對 {correct_count} 題")
-
-            # --- Logging Wrong Answers (after quiz completion) ---
-            # Only log wrong answers that were *newly recorded* in the temp_user_answers list during this completion render
-            wrong_answers_this_quiz_run = [
-                item for item in temp_user_answers # Use temp_user_answers which contains only newly recorded ones
-                if item.get("是否正確") is False
-            ]
-
-            if wrong_answers_this_quiz_run:
-                try:
-                    # Load existing log or create new
-                    if os.path.exists(WRONG_LOG):
-                        df_wrong_log = pd.read_csv(WRONG_LOG)
-                    else:
-                        # Define columns explicitly for a new dataframe
-                        df_wrong_log = pd.DataFrame(columns=["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"])
-
-                    # Append new wrong answers, avoiding duplicates for the same user/question combination
-                    new_wrong_entries = []
-                    # Create a set of existing wrong answers by user, chapter, question number (as strings)
-                    existing_wrong_keys = set(tuple(map(str, row[["使用者", "章節", "題號"]].tolist())) for _, row in df_wrong_log.iterrows())
-
-                    for entry in wrong_answers_this_quiz_run:
-                        # Create a key for the current entry (as strings)
-                        entry_key = (str(entry.get("使用者", "")), str(entry.get("章節", "")), str(entry.get("題號", "")))
-                        if entry_key not in existing_wrong_keys:
-                            # Ensure columns match before appending, use .get with default for safety
-                            entry_to_append = {
-                                "使用者": entry.get("使用者", ""),
-                                "時間": entry.get("時間", ""),
-                                "章節": entry.get("章節", ""),
-                                "題號": entry.get("題號", ""),
-                                "題目": entry.get("題目", ""),
-                                "使用者答案": entry.get("使用者答案", ""),
-                                "使用者內容": entry.get("使用者內容", ""),
-                                "正確答案": entry.get("正確答案", ""),
-                                "正確內容": entry.get("正確內容", ""),
-                                "解析": entry.get("解析", "")
-                            }
-                            new_wrong_entries.append(entry_to_append)
-                            existing_wrong_keys.add(entry_key) # Add to set to prevent adding duplicates within the current batch
-
-                    if new_wrong_entries:
-                        df_new_wrong = pd.DataFrame(new_wrong_entries)
-                        # Ensure columns match before concatenating - reorder if necessary
-                        required_cols = ["使用者", "時間", "章節", "題號", "題目", "使用者答案", "使用者內容", "正確答案", "正確內容", "解析"]
-                        df_new_wrong = df_new_wrong.reindex(columns=required_cols)
-
-                        df_wrong_log = pd.concat([df_wrong_log, df_new_wrong], ignore_index=True)
-                        df_wrong_log.to_csv(WRONG_LOG, index=False)
-                        # st.info(f"已記錄 {len(new_wrong_entries)} 筆錯題到錯題紀錄。") # Optional: show confirmation
-
-                except Exception as e:
-                    st.error(f"記錄錯題時發生錯誤：{e}")
+                 except Exception as e:
+                     st.error(f"記錄錯題時發生錯誤：{e}")
 
 
             # --- Restart Button (in Main Area after results) ---
             if st.button("🔄 重新出題", key="restart_quiz_button_completed"):
                  if st.session_state.last_settings:
-                    st.session_state.quiz_started = True # Indicate a new quiz should start
-                    st.session_state.user_answers = [] # Reset answers for the new quiz
-                    st.session_state.shuffled_options = {} # Reset shuffled options
+                     st.session_state.quiz_started = True
+                     st.session_state.user_answers = []
+                     st.session_state.shuffled_options = {}
 
-                    # Regenerate questions using the saved settings
-                    st.session_state.questions = generate_quiz_questions(
-                        st.session_state.last_settings["username"],
-                        st.session_state.last_settings["mode"], # Use mode from last_settings
-                        st.session_state.last_settings["selected_chapters"],
-                        st.session_state.last_settings["num_questions"],
-                        df,
-                        chapter_mapping,
-                        WRONG_LOG
-                    )
+                     st.session_state.questions = generate_quiz_questions(
+                         st.session_state.last_settings["username"],
+                         st.session_state.last_settings["mode"],
+                         st.session_state.last_settings["selected_chapters"],
+                         st.session_state.last_settings["num_questions"],
+                         df,
+                         chapter_mapping,
+                         WRONG_LOG
+                     )
 
-                    # If regeneration failed (e.g., no wrong questions left), stop the quiz
-                    if st.session_state.questions.empty:
-                        st.session_state.quiz_started = False
-                        st.warning("找不到符合條件的題目，無法重新出題。請檢查設定或錯題紀錄。")
-                        # No rerun needed, as quiz_started=False will stop display on next rerun
+                     if st.session_state.questions.empty:
+                         st.session_state.quiz_started = False
+                         # st.warning already inside generate_quiz_questions
+                     st.rerun()
 
                  else:
-                    st.error("無法找到上一次的測驗設定。請使用側邊欄重新開始。")
+                     st.error("無法找到上一次的測驗設定。請使用側邊欄重新開始。")
 
         else:
-            # If not all answered, display progress (optional)
-             st.markdown("---")
-             st.info(f"已回答 {len([item for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(q.get('章節'), q.get('題號')) for _, q in st.session_state.questions.iterrows()]])} / {total_questions} 題。")
-             st.markdown("請繼續作答。")
+            # Display progress
+            answered_count_for_current_quiz = len(answered_valid_question_keys)
+            st.markdown("---")
+            st.info(f"已回答 {answered_count_for_current_quiz} / {total_valid_questions} 題。")
+            if total_valid_questions > 0:
+                 st.markdown("請繼續作答。")
+            elif total_questions > 0 and total_valid_questions == 0:
+                 st.warning("本次測驗中的所有題目解答格式均無效，無法完成作答。請通知管理者修正題庫。")
+            # else: total_questions == 0, handled by load_data or generate_quiz_questions
+
+    # Implicit else: If quiz_started is False, nothing is displayed in the main area except the title.
