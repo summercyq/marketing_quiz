@@ -349,7 +349,7 @@ else: # st.session_state.is_admin_mode is False
                                     st.error(f"❌ 答錯了。正確答案是：{newly_answered_item.get('正確答案', 'N/A')}. {newly_answered_item.get('正確內容', 'N/A')}")
                                 st.markdown(f"※{newly_answered_item.get('章節', 'N/A')}第{newly_answered_item.get('題號', 'N/A')}題解析：{newly_answered_item.get('解析', '無解析')}")
 
-                 else: # This question was already answered in a previous rerun (answered_item_before_recording is NOT None)
+                    else: # This question was already answered in a previous rerun (answered_item_before_recording is NOT None)
                       # --- Display Feedback and Explanation for the PREVIOUS answer ---
                       if answered_item_before_recording.get("是否正確") is True:
                           st.success(f"✅ 答對了！")
