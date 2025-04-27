@@ -344,7 +344,7 @@ else: # mode is "一般出題模式" or "錯題再練模式"
 
                     # Display explanation
                     # Only show explanation after an answer is selected
-                    st.markdown(f"解析：{row['解析']}") # Assuming '解析' column exists
+                    st.markdown(f"※{row['章節']}第{row['題號']}題解析：{row['解析']}") # 顯示章節、題號和解析
 
                     # Record the answer if it's the first time this question is answered in this run
                     if not answered_item:
