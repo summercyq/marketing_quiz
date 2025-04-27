@@ -337,6 +337,7 @@ else: # st.session_state.is_admin_mode is False
                                 }
                                 st.session_state.user_answers.append(newly_answered_item)
 
+
                                 # --- Display Feedback and Explanation for the NEW answer ---
                                 if newly_answered_item.get("是否正確") is True:
                                     st.success(f"✅ 答對了！")
@@ -344,7 +345,7 @@ else: # st.session_state.is_admin_mode is False
                                     st.error(f"❌ 答錯了。正確答案是：{newly_answered_item.get('正確答案', 'N/A')}. {newly_answered_item.get('正確內容', 'N/A')}")
                                 st.markdown(f"※{newly_answered_item.get('章節', 'N/A')}第{newly_answered_item.get('題號', 'N/A')}題解析：{newly_answered_item.get('解析', '無解析')}")
 
-                    else:
+                 else:
                       # --- Display Feedback and Explanation for the PREVIOUS answer ---
                       if answered_item_before_recording.get("是否正確") is True:
                           st.success(f"✅ 答對了！")
@@ -354,25 +355,29 @@ else: # st.session_state.is_admin_mode is False
 
 
         # --- Evaluate Quiz Completion and Display Results After the Loop ---
-        total_valid_questions_count = len([
+        # Calculate total valid questions ONCE after the loop
+        final_total_valid_questions = len([
              1 for _, row in st.session_state.questions.iterrows()
              if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
         ])
 
-        # Count UNIQUE answered questions in the current quiz set
+        # Calculate answered count (unique) ONCE after the loop
+        # This counts unique questions from user_answers that are in the current quiz set
         answered_questions_in_quiz = {(item.get("章節"), item.get("題號")) for item in st.session_state.user_answers if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]}
-        answered_count = len(answered_questions_in_quiz)
+        final_answered_count = len(answered_questions_in_quiz)
 
 
-        all_answered = total_valid_questions_count > 0 and answered_count >= total_valid_questions_count
+        # Determine if all answered using these final counts
+        # This condition controls whether the final results block is shown
+        all_answered = final_total_valid_questions > 0 and final_answered_count >= final_total_valid_questions
 
 
         # --- Display Results and Restart Button ---
         if all_answered:
             st.markdown("---")
             # Calculate correct count based on all correct answers within the current quiz set
-            correct_count = sum(1 for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(str(q.get('章節', '')), str(q.get('題號', ''))) for _, q in st.session_state.questions.iterrows()] and item.get('是否正確') is True)
-            st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions_count} 題，答對 {correct_count} 題")
+            final_correct_count = sum(1 for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(str(q.get('章節', '')), str(q.get('題號', ''))) for _, q in st.session_state.questions.iterrows()] and item.get('是否正確') is True)
+            st.markdown(f"### 🎯 本次測驗結果：總計 {final_total_valid_questions} 題，答對 {final_correct_count} 題")
 
             # --- Logging Wrong Answers (after quiz completion) ---
             wrong_answers_this_quiz_set = [
@@ -440,15 +445,16 @@ else: # st.session_state.is_admin_mode is False
                     st.error("無法找到上一次的測驗設定。請使用側邊欄重新開始。")
         else:
              st.markdown("---")
-             # Use VALID_ANSWER_LABELS for calculating valid questions for progress display
-             total_valid_questions_for_progress = len([
+             # Calculate valid questions for progress display (should be the same as final_total_valid_questions)
+             progress_total_valid = len([
                   1 for _, row in st.session_state.questions.iterrows()
                   if str(row.get("解答", "")).strip().upper() in VALID_ANSWER_LABELS
              ])
-             # Count UNIQUE answered questions in the current quiz set for progress display
+             # Count UNIQUE answered questions for progress display (should be the same as final_answered_count)
              answered_questions_in_quiz_progress = {(item.get("章節"), item.get("題號")) for item in st.session_state.user_answers if (item.get("章節"), item.get("題號")) in [(q.get("章節", ""), q.get("題號", "")) for _, q in st.session_state.questions.iterrows()]}
-             answered_count_progress = len(answered_questions_in_quiz_progress)
+             progress_answered_count = len(answered_questions_in_quiz_progress)
 
-             st.info(f"已回答 {answered_count_progress} / {total_valid_questions_for_progress} 題。")
-             if total_valid_questions_for_progress > answered_count_progress:
+
+             st.info(f"已回答 {progress_answered_count} / {progress_total_valid} 題。")
+             if progress_total_valid > progress_answered_count:
                 st.markdown("請繼續作答。")
