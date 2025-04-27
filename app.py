@@ -308,8 +308,12 @@ else: # st.session_state.is_admin_mode is False
 
                 # --- Handle Feedback, Explanation, and Recording if Selected ---
                 if selected is not None:
+                    # Find if this question has been answered and recorded in the session state list *before* this recording logic runs
+                    # Corrected typo: item.get("章章") -> item.get("章節")
                     answered_item_before_recording = next((item for item in st.session_state.user_answers if item.get("章節") == row.get("章節") and item.get("題號") == row.get("題號")), None)
 
+
+                    # Check if this selection is a *new* answer that hasn't been recorded yet
                     if answered_item_before_recording is None:
                          # --- Record the New Answer ---
                          original_selected_text = selected
@@ -337,6 +341,7 @@ else: # st.session_state.is_admin_mode is False
                                 }
                                 st.session_state.user_answers.append(newly_answered_item)
 
+
                                 # --- Display Feedback and Explanation for the NEW answer ---
                                 if newly_answered_item.get("是否正確") is True:
                                     st.success(f"✅ 答對了！")
@@ -344,7 +349,7 @@ else: # st.session_state.is_admin_mode is False
                                     st.error(f"❌ 答錯了。正確答案是：{newly_answered_item.get('正確答案', 'N/A')}. {newly_answered_item.get('正確內容', 'N/A')}")
                                 st.markdown(f"※{newly_answered_item.get('章節', 'N/A')}第{newly_answered_item.get('題號', 'N/A')}題解析：{newly_answered_item.get('解析', '無解析')}")
 
-                     else: # This question was already answered in a previous rerun (answered_item_before_recording is NOT None)
+                 else: # This question was already answered in a previous rerun (answered_item_before_recording is NOT None)
                       # --- Display Feedback and Explanation for the PREVIOUS answer ---
                       if answered_item_before_recording.get("是否正確") is True:
                           st.success(f"✅ 答對了！")
