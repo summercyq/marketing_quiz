@@ -323,7 +323,7 @@ else: # st.session_state.is_admin_mode is False
                          original_selected_text = selected
                          user_ans_label = next((label for label, opt_text in zipped if opt_text == original_selected_text), None)
 
-                        if original_selected_text is not None and user_ans_label is not None:
+                    if original_selected_text is not None and user_ans_label is not None:
                             correct_label_actual = str(row.get("解答", "")).strip().upper()
                             if correct_label_actual not in VALID_ANSWER_LABELS or not correct_label_actual:
                                 st.error(f"題目 {row.get('章節', 'N/A')}-{row.get('題號', 'N/A')} 的解答格式錯誤：'{row.get('解答', 'None')}'。此題無法記錄作答結果。")
@@ -352,7 +352,7 @@ else: # st.session_state.is_admin_mode is False
                                     st.error(f"❌ 答錯了。正確答案是：{newly_answered_item.get('正確答案', 'N/A')}. {newly_answered_item.get('正確內容', 'N/A')}")
                                 st.markdown(f"※{newly_answered_item.get('章節', 'N/A')}第{newly_answered_item.get('題號', 'N/A')}題解析：{newly_answered_item.get('解析', '無解析')}")
 
-                        else:
+                    else:
                       # --- Display Feedback and Explanation for the PREVIOUS answer ---
                       if answered_item_before_recording.get("是否正確") is True:
                           st.success(f"✅ 答對了！")
