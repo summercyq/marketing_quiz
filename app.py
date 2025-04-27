@@ -418,7 +418,7 @@ else: # st.session_state.is_admin_mode is False
         # Only show total score and restart button if all questions are answered
         if all_answered:
             st.markdown("---")
-            st.markdown(f"### 🎯 本次測驗結果：總計 {total_questions} 題，答對 {correct_count} 題")
+            st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions_count} 題，答對 {correct_count} 題")
 
             # --- Logging Wrong Answers (after quiz completion) ---
             # Only log wrong answers that were *newly recorded* in the temp_user_answers list during this completion render
