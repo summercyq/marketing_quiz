@@ -284,19 +284,17 @@ if st.session_state.is_admin_mode:
 
 # Display Quiz Interface if not in Admin Mode and quiz is started
 else: # st.session_state.is_admin_mode is False
-    # st.markdown("---") # Separator already added after main mode selection
     if st.session_state.quiz_started and st.session_state.questions is not None and not st.session_state.questions.empty:
         total_questions = len(st.session_state.questions)
-        all_answered = True # Assume all answered initially
-
-        # Collect answers in a temporary list for this render cycle
-        temp_user_answers = []
+        # Note: all_answered will be evaluated after the loop
 
         for i, row in st.session_state.questions.iterrows():
             question_key = f"q{i}_quiz" # Unique key for the radio button in quiz mode
 
-            # Find if this question was answered in a previous rerun within this quiz session
-            answered_item = next((item for item in st.session_state.user_answers if item["章節"] == row["章節"] and item["題號"] == row["題號"]), None)
+            # Find if this question has been answered in the current session state list
+            # This determines if feedback/explanation and A.B.C.D labels should be shown
+            answered_item = next((item for item in st.session_state.user_answers if item.get("章節") == row.get("章節") and item.get("題號") == row.get("題號")), None)
+
 
             with st.container():
                 st.markdown(f"**Q{i + 1}. {row.get('題目', 'N/A')}**") # Use .get for safety
@@ -316,118 +314,157 @@ else: # st.session_state.is_admin_mode is False
                 else:
                     zipped = st.session_state.shuffled_options[shuffled_key]
 
+                # Create mappings between labels (A,B,C,D) and their text content
                 label_to_opt = {label: opt for label, opt in zipped}
                 opt_to_label = {opt: label for label, opt in zipped}
 
-                correct_label = str(row.get("解答", "")).strip().upper()
-                # Validate correct label
-                if correct_label not in labels or not correct_label:
-                    st.error(f"題目 {row.get('章節', 'N/A')}-{row.get('題號', 'N/A')} 的解答格式錯誤：'{row.get('解答', 'None')}'。應為 A, B, C, 或 D。此題無法作答。")
-                    all_answered = False # Consider quiz incomplete
-                    continue # Skip this question's radio button and processing
-
-                correct_text = row.get(correct_label, "無效的解答選項文字")
-
-                # Find the index of the previously selected answer if it exists
-                selected_index = None
-                if answered_item and answered_item.get("使用者內容") in [opt for _, opt in zipped]:
-                     try:
-                         selected_index = [opt for _, opt in zipped].index(answered_item.get("使用者內容"))
-                     except ValueError:
-                         selected_index = None
-
-                # Prepare options list for display based on whether the question is answered
+                # Prepare options list for display
                 display_options = []
-                # Find the text of the previously selected option if answered
-                prev_selected_text = answered_item.get("使用者內容") if answered_item else None
-                adjusted_selected_index = None # Index for the display_options list
+                # Show A.B.C.D labels if the question has been answered
+                if answered_item is not None:
+                    display_options = [f"{label}. {opt_text}" for label, opt_text in zipped]
+                else: # If not answered yet, just show option text
+                    display_options = [opt_text for label, opt_text in zipped]
 
-                # zipped contains tuples like ('A', 'Option A Text')
-                for label, opt_text in zipped:
-                    if answered_item is not None:
-                        # If answered, format as "A. Option Text"
-                        formatted_option = f"{label}. {opt_text}"
-                        display_options.append(formatted_option)
-                        # If this is the previously selected option, record its index in the new list
-                        if opt_text == prev_selected_text:
-                             adjusted_selected_index = len(display_options) - 1
-                    else:
-                        # If not answered, just show "Option Text"
-                        display_options.append(opt_text)
-                         # The original selected_index should still work here as the list order/content is the same
+
+                # Determine the index of the option that should be initially selected
+                initial_selection_index = None
+                # Get the currently selected value for this radio button from session state (persists across reruns)
+                current_radio_state_value = st.session_state.get(question_key)
+
+                if current_radio_state_value is not None:
+                    # Find the index of the currently selected item in the *display_options* list
+                    try:
+                         initial_selection_index = display_options.index(current_radio_state_value)
+                    except ValueError:
+                         # This might happen if the option text changed or if the list formatting changed unexpectedly
+                         pass # Keep index as None
+
 
                 # Display radio buttons
+                # The 'selected' variable will hold the value chosen by the user IN THIS RERUN, OR the initial value if none clicked
                 selected = st.radio("選項：", display_options,
                                     key=question_key,
-                                    index=adjusted_selected_index if answered_item is not None else selected_index, # Use adjusted index if answered
-                                    disabled=answered_item is not None)
-
-                # Check if all questions have been answered based on whether 'selected' is None for any question
-                if selected is None and correct_label in labels: # Only mark incomplete if the question itself is valid
-                    all_answered = False
-
-                # Process answer if selected AND it hasn't been processed in a previous rerun of *this specific question*
-                if selected is not None and answered_item is None:
-                    user_ans_label = opt_to_label.get(selected)
-                    is_correct = (user_ans_label == correct_label)
-
-                    # Add to temporary list for this render cycle's new answers
-                    temp_user_answers.append({
-                        "使用者": st.session_state.username,
-                        "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "正確答案": correct_label,
-                        "正確內容": correct_text,
-                        "使用者答案": user_ans_label if user_ans_label is not None else "未選",
-                        "使用者內容": selected,
-                        "章節": row.get("章節", "N/A"),
-                        "題號": row.get("題號", "N/A"),
-                        "題目": row.get("題目", "N/A"),
-                        "解析": row.get("解析", "無解析"),
-                        "是否正確": is_correct
-                    })
-
-                    # Display feedback immediately after selection
-                    if is_correct:
-                        st.success(f"✅ 答對了！")
-                    else:
-                        st.error(f"❌ 答錯了。正確答案是：{correct_label}. {correct_text}")
-
-                    # Display explanation immediately after selection
-                    st.markdown(f"※章節{row.get('章節', 'N/A')} 第{row.get('題號', 'N/A')}題解析：{row.get('解析', '無解析')}")
-                elif answered_item is not None:
-                    # If already answered, just display feedback and explanation
-                    if answered_item.get("是否正確") is True:
-                         st.success(f"✅ 答對了！")
-                    else:
-                         st.error(f"❌ 答錯了。正確答案是：{answered_item.get('正確答案', 'N/A')}. {answered_item.get('正確內容', 'N/A')}")
-                    st.markdown(f"※{answered_item.get('章節', 'N/A')}第{answered_item.get('題號', 'N/A')}題解析：{answered_item.get('解析', '無解析')}")
+                                    index=initial_selection_index, # Use the determined index for initial display
+                                    disabled=answered_item is not None) # Disable if permanently answered
 
 
-        # Append newly recorded answers (from this rerun) to the session state list
-        st.session_state.user_answers.extend(temp_user_answers)
+                # --- Handle Feedback, Explanation, and Recording if Selected ---
+                # This block executes if the radio button has a value in this rerun.
+                # It could be a new selection OR a re-display of a previous selection.
+                if selected is not None:
 
-        # Recalculate correct count based on all *recorded* answers for *this specific quiz set*
-        # This ensures count is correct even if navigating away and back, or rerunning.
-        correct_count = sum(
-            1 for item in st.session_state.user_answers
-            if item.get("是否正確") is True and (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()] # Ensure comparison types match
-        )
+                    # Check if this selection is a *new* answer that hasn't been recorded yet
+                    if answered_item is None:
+                         # --- Record the New Answer ---
+                         # Determine the original option text and label based on the selected display text
+                         original_selected_text = None
+                         user_ans_label = None
+
+                         # Find the original (label, opt_text) pair that corresponds to the `selected` display text
+                         # Iterate through the original zipped options to find the match
+                         for label, opt_text in zipped:
+                             # Check if the selected display text matches the original text OR the formatted text
+                             # Since we only add A.B.C.D if answered_item is not None *before* this block,
+                             # if answered_item was None, 'selected' will just be the original opt_text.
+                             # If answered_item was not None, 'selected' will be the formatted text "A. Text".
+                             # We need a robust way to get the original text from 'selected'.
+                             # Use the mapping from the *current* display_options back to original text/label if possible.
+                             # A simpler way: iterate zipped and see if the selected display text matches either format.
+
+                             # If labels were added to display_options for this question in *this* rerun:
+                             if f"{labels[0]}. {zipped[0][1]}" in display_options: # Check if first option is formatted "A. Text"
+                                 if selected == f"{label}. {opt_text}":
+                                     original_selected_text = opt_text
+                                     user_ans_label = label
+                                     break
+                             else: # Labels were NOT added, selected is just the original text
+                                 if selected == opt_text:
+                                     original_selected_text = opt_text
+                                     user_ans_label = label
+                                     break
+
+
+                         # If a valid original option text was found
+                         if original_selected_text is not None:
+                            correct_label_actual = str(row.get("解答", "")).strip().upper() # Ensure correct format
+                            # Validate correct label exists
+                            if correct_label_actual not in labels or not correct_label_actual:
+                                st.error(f"題目 {row.get('章節', 'N/A')}-{row.get('題號', 'N/A')} 的解答格式錯誤：'{row.get('解答', 'None')}'。此題無法記錄作答結果。")
+                                # Do not record if correct answer is invalid
+                                original_selected_text = None # Prevent recording if correct answer is bad
+                            else:
+                                is_correct = (user_ans_label == correct_label_actual)
+
+                                # Record the answer
+                                newly_answered_item = {
+                                     "使用者": st.session_state.username,
+                                     "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                     "正確答案": correct_label_actual,
+                                     "正確內容": row.get(correct_label_actual, "N/A"), # Get text of correct answer from row
+                                     "使用者答案": user_ans_label if user_ans_label is not None else "未選",
+                                     "使用者內容": original_selected_text, # Store original text
+                                     "章節": row.get("章節", "N/A"),
+                                     "題號": row.get("題號", "N/A"),
+                                     "題目": row.get("題目", "N/A"),
+                                     "解析": row.get("解析", "無解析"),
+                                     "是否正確": is_correct
+                                }
+                                # Append the new answer to the list
+                                st.session_state.user_answers.append(newly_answered_item)
+
+                                # !!! 重要：立即更新 answered_item 變數，讓後續同一次運行中的顯示邏輯知道這題已經作答 !!!
+                                answered_item = newly_answered_item
+
+
+                    # --- 顯示回饋和解析 ---
+                    # 這個區塊會在 Radio Button 有選定值時執行 (無論是新選定或之前選定)
+                    # 如果上面記錄了新作答，answered_item 已經被更新為新的紀錄項目
+                    # 如果之前就作答過，answered_item 在迴圈開始時就已經是非 None
+                    if answered_item is not None:
+                        if answered_item.get("是否正確") is True:
+                            st.success(f"✅ 答對了！")
+                        else:
+                            # 使用 answered_item 中的記錄來顯示正確答案和內容
+                            st.error(f"❌ 答錯了。正確答案是：{answered_item.get('正確答案', 'N/A')}. {answered_item.get('正確內容', 'N/A')}")
+
+                        # 顯示解析
+                        st.markdown(f"※{answered_item.get('章節', 'N/A')}第{answered_item.get('題號', 'N/A')}題解析：{answered_item.get('解析', '無解析')}")
+
+
+        # --- Re-evaluate all_answered flag after the loop ---
+        # This checks if the number of answered questions matches the number of questions displayed
+        total_valid_questions_count = len([
+             1 for _, row in st.session_state.questions.iterrows()
+             if str(row.get("解答", "")).strip().upper() in ['A', 'B', 'C', 'D'] # Only count questions with valid answers in the source data
+        ])
+
+        # Count unique answered questions present in the current quiz set
+        answered_count = len([
+             1 for item in st.session_state.user_answers
+             if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]
+        ])
+
+        # Check if the number of answered questions matches the number of valid questions in this quiz
+        all_answered = total_valid_questions_count > 0 and answered_count >= total_valid_questions_count
 
 
         # --- Display Results and Restart Button ---
         # Only show total score and restart button if all questions are answered
         if all_answered:
             st.markdown("---")
-            st.markdown(f"### 🎯 本次測驗結果：總計 {total_questions} 題，答對 {correct_count} 題")
+            st.markdown(f"### 🎯 本次測驗結果：總計 {total_valid_questions_count} 題，答對 {sum(1 for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(str(q.get('章節', '')), str(q.get('題號', ''))) for _, q in st.session_state.questions.iterrows()] and item.get('是否正確') is True)} 題") # Recalculate correct count from answered_items
 
             # --- Logging Wrong Answers (after quiz completion) ---
-            # Only log wrong answers that were *newly recorded* in the temp_user_answers list during this completion render
-            wrong_answers_this_quiz_run = [
-                item for item in temp_user_answers # Use temp_user_answers which contains only newly recorded ones
-                if item.get("是否正確") is False
+            # Filter wrong answers that are part of the *current* quiz set and were marked incorrect
+            wrong_answers_this_quiz_set = [
+                item for item in st.session_state.user_answers
+                if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()] # Ensure it's from this quiz set
+                and item.get("是否正確") is False
             ]
 
-            if wrong_answers_this_quiz_run:
+
+            if wrong_answers_this_quiz_set:
                 try:
                     # Load existing log or create new
                     if os.path.exists(WRONG_LOG):
@@ -441,7 +478,7 @@ else: # st.session_state.is_admin_mode is False
                     # Create a set of existing wrong answers by user, chapter, question number (as strings)
                     existing_wrong_keys = set(tuple(map(str, row[["使用者", "章節", "題號"]].tolist())) for _, row in df_wrong_log.iterrows())
 
-                    for entry in wrong_answers_this_quiz_run:
+                    for entry in wrong_answers_this_quiz_set:
                         # Create a key for the current entry (as strings)
                         entry_key = (str(entry.get("使用者", "")), str(entry.get("章節", "")), str(entry.get("題號", "")))
                         if entry_key not in existing_wrong_keys:
@@ -505,5 +542,11 @@ else: # st.session_state.is_admin_mode is False
         else:
             # If not all answered, display progress (optional)
              st.markdown("---")
-             st.info(f"已回答 {len([item for item in st.session_state.user_answers if (item.get('章節'), item.get('題號')) in [(q.get('章節'), q.get('題號')) for _, q in st.session_state.questions.iterrows()]])} / {total_questions} 題。")
-             st.markdown("請繼續作答。")
+             answered_count = len([
+                 1 for item in st.session_state.user_answers
+                 if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]
+             ])
+             st.info(f"已回答 {answered_count} / {total_questions} 題。")
+             # Only show "請繼續作答" if there are questions to answer
+             if total_questions > answered_count:
+                st.markdown("請繼續作答。")
