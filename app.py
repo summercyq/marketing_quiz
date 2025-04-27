@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import random
@@ -22,9 +21,9 @@ def load_data():
 df = load_data()
 chapter_mapping = {f"CH{i}": [f"{i}-1", f"{i}-2"] for i in range(1, 10)}
 
-for key in ["quiz_started", "questions", "user_answers", "shuffled_options", "show_result"]:
+for key in ["quiz_started", "questions", "user_answers", "shuffled_options", "current_question_index"]:
     if key not in st.session_state:
-        st.session_state[key] = False if key == "quiz_started" else [] if key.endswith("s") else None
+        st.session_state[key] = False if key == "quiz_started" else [] if key.endswith("s") else 0
 
 st.sidebar.header("使用者與模式設定")
 st.session_state.username = st.sidebar.text_input("請輸入使用者名稱", value=st.session_state.get("username", ""))
@@ -84,7 +83,7 @@ else:
         st.session_state.quiz_started = True
         st.session_state.user_answers = []
         st.session_state.shuffled_options = {}
-        st.session_state.show_result = False
+        st.session_state.current_question_index = 0  # Initialize question index
 
         if mode == "一般出題模式":
             sections = [s for ch in selected_chapters for s in chapter_mapping[ch]]
@@ -108,67 +107,57 @@ else:
     if st.session_state.quiz_started and st.session_state.questions is not None:
         st.markdown("---")
         total = len(st.session_state.questions)
-        correct = 0
+        current_index = st.session_state.current_question_index
+        row = st.session_state.questions.iloc[current_index]
 
-        for i, row in st.session_state.questions.iterrows():
-            with st.expander(f"Q{i+1}. {row['題目']}", expanded=True):
-                options = [row['A'], row['B'], row['C'], row['D']]
-                labels = ['A', 'B', 'C', 'D']
-                zipped = list(zip(labels, options))
-                if f"q{i}_options" not in st.session_state.shuffled_options:
-                    random.shuffle(zipped)
-                    st.session_state.shuffled_options[f"q{i}_options"] = zipped
+        with st.expander(f"Q{current_index + 1}. {row['題目']}", expanded=True):
+            options = [row['A'], row['B'], row['C'], row['D']]
+            labels = ['A', 'B', 'C', 'D']
+            zipped = list(zip(labels, options))
+            if f"q{current_index}_options" not in st.session_state.shuffled_options:
+                random.shuffle(zipped)
+                st.session_state.shuffled_options[f"q{current_index}_options"] = zipped
+            else:
+                zipped = st.session_state.shuffled_options[f"q{current_index}_options"]
+
+            label_to_opt = {label: opt for label, opt in zipped}
+            opt_to_label = {opt: label for label, opt in zipped}
+            correct_label = row["解答"]
+            correct_text = row[correct_label]
+
+            selected = st.radio("選項：", [opt for _, opt in zipped], key=f"q{current_index}", index=None)
+            user_ans_label = opt_to_label[selected] if selected else ""
+
+            if st.button("✅ 提交答案"):
+                st.session_state.user_answers.append({
+                    "使用者": st.session_state.username,
+                    "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "正確答案": correct_label,
+                    "正確內容": correct_text,
+                    "使用者答案": user_ans_label,
+                    "使用者內容": selected,
+                    "章節": row["章節"],
+                    "題號": row["題號"],
+                    "解析": row["解析"],
+                    "選項配對": zipped
+                })
+
+                is_correct = selected == correct_text
+                if is_correct:
+                    st.success("✅ 答對了！")
                 else:
-                    zipped = st.session_state.shuffled_options[f"q{i}_options"]
+                    st.error(f"❌ 答錯了。正確答案是：{correct_label}. {correct_text}")
+                st.markdown(f"解析：第{row['章節']}章題號{row['題號']}：{row['解析']}")
 
-                label_to_opt = {label: opt for label, opt in zipped}
-                opt_to_label = {opt: label for label, opt in zipped}
-                correct_label = row["解答"]
-                correct_text = row[correct_label]
-
-                if not st.session_state.show_result:
-                    selected = st.radio("選項：", [opt for _, opt in zipped], key=f"q{i}", index=None)
-                    user_ans_label = opt_to_label[selected] if selected else ""
-                    if len(st.session_state.user_answers) <= i:
-                        st.session_state.user_answers.append({
-                            "使用者": st.session_state.username,
-                            "時間": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "正確答案": correct_label,
-                            "正確內容": correct_text,
-                            "使用者答案": user_ans_label,
-                            "使用者內容": selected,
-                            "章節": row["章節"],
-                            "題號": row["題號"],
-                            "解析": row["解析"],
-                            "選項配對": zipped
-                        })
-                    else:
-                        st.session_state.user_answers[i]["使用者答案"] = user_ans_label
-                        st.session_state.user_answers[i]["使用者內容"] = selected
+                if current_index < total - 1:
+                    st.button("➡️ 繼續下一題", on_click=lambda: setattr(st.session_state, 'current_question_index', st.session_state.current_question_index + 1))
                 else:
-                    ans = st.session_state.user_answers[i]
-                    is_correct = ans["使用者內容"] == ans["正確內容"]
-                    if is_correct:
-                        correct += 1
-                    for label, opt in ans["選項配對"]:
-                        style = ""
-                        if opt == ans["正確內容"]:
-                            style = "color:green;font-weight:bold;"
-                        elif opt == ans["使用者內容"] and not is_correct:
-                            style = "color:red;font-weight:bold;text-decoration:line-through;"
-                        st.markdown(f"<div style='{style}'>{label}. {opt}</div>", unsafe_allow_html=True)
-
-                    if not is_correct:
-                        st.markdown(f"解析：第{ans['章節']}章題號{ans['題號']}：{ans['解析']}")
-
-        if not st.session_state.show_result:
-            if st.button("✅ 送出並評分"):
-                st.session_state.show_result = True
-        else:
-            st.markdown(f"### 🎯 共 {total} 題，答對 {correct} 題")
-            if st.button("🔄 重新出題"):
-                st.session_state.quiz_started = False
-                st.session_state.questions = None
-                st.session_state.user_answers = []
-                st.session_state.shuffled_options = {}
-                st.session_state.show_result = False
+                    st.success(f"測驗結束！你完成了所有 {total} 題。")
+                    correct_count = sum(1 for ans in st.session_state.user_answers if ans["使用者答案"] == ans["正確答案"])
+                    st.markdown(f"### 🎯 共 {total} 題，答對 {correct_count} 題")
+                    if st.button("🔄 重新出題"):
+                        st.session_state.quiz_started = False
+                        st.session_state.questions = None
+                        st.session_state.user_answers = []
+                        st.session_state.shuffled_options = {}
+                        st.session_state.current_question_index = 0
