@@ -365,11 +365,18 @@ else: # st.session_state.is_admin_mode is False
         answered_questions_in_quiz = {(item.get("章節"), item.get("題號")) for item in st.session_state.user_answers if (item.get("章節"), item.get("題號")) in [(str(q.get("章節", "")), str(q.get("題號", ""))) for _, q in st.session_state.questions.iterrows()]}
         final_answered_count = len(answered_questions_in_quiz)
 
+         # >>> 在這裡加入偵錯行 <<<
+        st.write(f"偵錯：計算完成！ final_total_valid_questions = {final_total_valid_questions}")
+        st.write(f"偵錯：計算完成！ final_answered_count = {final_answered_count}")
+        # >>> -------------------- <<<
 
         # Determine if all answered using these final counts
         # This condition controls whether the final results block is shown
         all_answered = final_total_valid_questions > 0 and final_answered_count >= final_total_valid_questions
 
+        # >>> 在這裡也加入偵錯行，看看 all_answered 是 True 還是 False <<<
+        st.write(f"偵錯：all_answered 判斷結果 = {all_answered}")
+        # >>> -------------------- <<<
 
         # --- Display Results and Restart Button ---
         if all_answered:
